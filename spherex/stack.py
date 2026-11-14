@@ -40,7 +40,7 @@ def encode(img: np.ndarray) -> bytes:
 
 
 class Stack:
-    def __init__(self, ra: float, dec: float, n: int, exposures: list[irsa.Exposure]):
+    def __init__(self, ra: float, dec: float, n: int, exposures: list[irsa.Exposure], first_det: int | None = None):
         self.ra, self.dec, self.n = ra, dec, n
         self.id = stack_id(ra, dec, n)
         self.truncated = max(len(exposures) - MAX_FRAMES, 0)
@@ -54,6 +54,7 @@ class Stack:
         self.arrived: list[int] = []  # indices in the order they finished
         self.missing: list[dict] = []
         self.done = False
+        self.first_det = first_det
         self._lock = threading.Lock()
 
     # ---- what the web page asks for -------------------------------------------------
@@ -100,10 +101,18 @@ class Stack:
             self.blobs[i] = blob
             self.arrived.append(i)
 
+    def build_order(self) -> list[int]:
+        """Spread over time first; the visitor's chosen detector before the others."""
+        order = progressive_order(len(self.exposures))
+        if self.first_det:
+            order = ([i for i in order if self.exposures[i].det == self.first_det]
+                     + [i for i in order if self.exposures[i].det != self.first_det])
+        return order
+
     def build(self) -> None:
         try:
             with ThreadPoolExecutor(WORKERS) as pool:
-                list(pool.map(self._one, progressive_order(len(self.exposures))))
+                list(pool.map(self._one, self.build_order()))
         finally:
             self.done = True
 
@@ -137,13 +146,15 @@ class Stack:
         self.arrived = [f["i"] for f in doc["frames"]]
         self.missing = doc.get("missing", [])
         self.done = True
+        self.first_det = None
         self._lock = threading.Lock()
         return self
 
 
-def start(ra: float, dec: float, n: int) -> Stack:
-    """Search the archive and return an empty Stack ready to build (raises ValueError on bad input)."""
+def start(ra: float, dec: float, n: int, exposures: list[irsa.Exposure] | None = None,
+          first_det: int | None = None) -> Stack:
+    """Return an empty Stack ready to build (searches the archive unless exposures are given)."""
     ra, dec = validate(ra, dec)
     if n not in cutout.SIZES:
         raise ValueError("size not allowed")
-    return Stack(ra, dec, n, irsa.search(ra, dec))
+    return Stack(ra, dec, n, irsa.search(ra, dec) if exposures is None else exposures, first_det)

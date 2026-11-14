@@ -110,9 +110,10 @@
         </div>
         <div class="segmented" role="tablist" aria-label="Results view">
           <button type="button" role="tab" id="view-coverage" aria-selected="true" aria-pressed="true">Coverage</button>
-          <button type="button" role="tab" id="view-flipbook" aria-selected="false" aria-pressed="false" disabled title="Coming in the next step">Flipbook</button>
+          <button type="button" role="tab" id="view-flipbook" aria-selected="false" aria-pressed="false">Flipbook</button>
         </div>
       </header>
+      <div id="coverage-panel" class="coverage-panel">
       <p class="results-summary" id="results-summary"></p>
       <ul class="visits" id="visits" aria-label="Visits: click to show or hide"></ul>
       <div class="table-wrap" id="table-wrap">
@@ -131,6 +132,90 @@
         </table>
       </div>
       <p class="results-empty" id="results-empty" hidden></p>
+      </div>
+
+      <form class="flip-settings" id="flip-settings" hidden onsubmit="return false">
+        <label class="setting">
+          <span class="setting-label">Colour band</span>
+          <select id="flip-band"></select>
+          <span class="setting-help">A whole detector adds more photos together (clearer). One exact colour is the fairest comparison.</span>
+        </label>
+        <fieldset class="setting">
+          <legend class="setting-label">Each frame shows</legend>
+          <div class="segmented wide" id="flip-mode">
+            <button type="button" data-mode="visits" aria-pressed="true">One visit, added up</button>
+            <button type="button" data-mode="photos" aria-pressed="false">One photo</button>
+          </div>
+        </fieldset>
+        <label class="setting">
+          <span class="setting-label">Time between frames <output id="flip-interval-out">500 ms</output></span>
+          <input type="range" id="flip-interval" min="100" max="2000" step="50" value="500">
+        </label>
+        <label class="setting">
+          <span class="setting-label">Zoom <output id="flip-zoom-out">1×</output></span>
+          <input type="range" id="flip-zoom" min="1" max="8" step="0.5" value="1">
+        </label>
+        <fieldset class="setting">
+          <legend class="setting-label">Brightness range <output id="flip-cuts-out"></output></legend>
+          <div class="two-sliders">
+            <label>Darkest <input type="range" id="flip-low" min="0" max="40" step="1" value="5"></label>
+            <label>Brightest <input type="range" id="flip-high" min="90" max="100" step="0.1" value="99.5"></label>
+          </div>
+        </fieldset>
+        <fieldset class="setting">
+          <legend class="setting-label">Stretch</legend>
+          <div class="segmented wide" id="flip-stretch">
+            <button type="button" data-stretch="soft" aria-pressed="true">Soft (shows faint things)</button>
+            <button type="button" data-stretch="linear" aria-pressed="false">Linear</button>
+          </div>
+        </fieldset>
+        <fieldset class="setting checks">
+          <label class="toggle"><input type="checkbox" id="flip-invert" checked> Invert (dark stars on white, like WiseView)</label>
+          <label class="toggle"><input type="checkbox" id="flip-smooth"> Smooth pixels (helps see tiny shifts)</label>
+          <label class="toggle"><input type="checkbox" id="flip-marker" checked> Mark the search position</label>
+        </fieldset>
+        <fieldset class="setting">
+          <legend class="setting-label">Patch size</legend>
+          <div class="segmented wide" id="flip-size">
+            <button type="button" data-size="32" aria-pressed="false">Small 3′</button>
+            <button type="button" data-size="64" aria-pressed="true">Medium 7′</button>
+            <button type="button" data-size="128" aria-pressed="false">Large 13′</button>
+          </div>
+          <span class="setting-help">Larger patches show more sky but take longer to load.</span>
+        </fieldset>
+      </form>
+    </section>
+
+    <section class="flip-stage" id="flip-stage" hidden aria-label="Flipbook">
+      <header class="flip-head">
+        <h2 class="flip-title" id="flip-title"></h2>
+        <p class="flip-sub" id="flip-sub"></p>
+      </header>
+      <div class="flip-view" id="flip-view">
+        <div class="flip-frame" id="flip-frame">
+          <canvas id="flip-canvas" role="img" aria-label="The chosen patch of sky, one frame of the flipbook"></canvas>
+          <canvas id="flip-overlay" aria-hidden="true"></canvas>
+          <p class="flip-empty" id="flip-empty" hidden></p>
+          <p class="flip-compass">North up, east left</p>
+        </div>
+      </div>
+      <footer class="flip-controls">
+        <div class="transport">
+          <button type="button" class="icon-button big" id="flip-prev" aria-label="Previous frame">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3.5 5.5 8l4.5 4.5"/></svg>
+          </button>
+          <button type="button" class="icon-button big play" id="flip-play" aria-pressed="false" aria-label="Play">
+            <svg viewBox="0 0 16 16" aria-hidden="true" class="i-play"><path d="M5 3.5v9l7.5-4.5z"/></svg>
+            <svg viewBox="0 0 16 16" aria-hidden="true" class="i-pause"><path d="M5.5 3.5v9M10.5 3.5v9"/></svg>
+          </button>
+          <button type="button" class="icon-button big" id="flip-next" aria-label="Next frame">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3.5 10.5 8 6 12.5"/></svg>
+          </button>
+        </div>
+        <div class="frames" id="flip-frames" role="group" aria-label="Frames"></div>
+        <input type="range" class="frames-slider" id="flip-slider" min="0" max="0" value="0" aria-label="Frame" hidden>
+      </footer>
+      <p class="flip-status" id="flip-status" role="status" aria-live="polite"></p>
     </section>
 
     <aside class="panel legend" id="legend" hidden aria-label="Layers">

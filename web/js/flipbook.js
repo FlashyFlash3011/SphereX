@@ -1,57 +1,65 @@
-// The image view. Every frame lives in one GPU texture array, so switching frames is a
-// single number change: instant, with no loading while playing.
+// Draws one flipbook frame on the GPU. All frames sit in one texture array, so switching
+// frames, contrast, zoom or invert is instant (no re-upload).
+
+export const NO_DATA = -1e30;
 
 const VERT = `#version 300 es
 in vec2 a_pos;
 out vec2 v_uv;
-void main() { v_uv = a_pos * 0.5 + 0.5; gl_Position = vec4(a_pos, 0.0, 1.0); }`;
+void main() { v_uv = vec2(a_pos.x * 0.5 + 0.5, 0.5 - a_pos.y * 0.5); gl_Position = vec4(a_pos, 0.0, 1.0); }`;
 
 const FRAG = `#version 300 es
 precision highp float;
 precision highp sampler2DArray;
 uniform sampler2DArray u_frames;
-uniform float u_layer;
-uniform vec2 u_cuts;      // black point, white point
-uniform vec3 u_tint;      // colour of this frame's wavelength
-uniform float u_px;       // screen pixels per image pixel
+uniform int u_layer;
+uniform vec2 u_cuts;     // black point, white point
+uniform float u_zoom;
+uniform bool u_soft;     // asinh stretch
+uniform bool u_invert;
+uniform bool u_smooth;   // bilinear between pixels
+uniform int u_n;
 in vec2 v_uv;
 out vec4 o;
+
+float fetchPx(ivec2 p) {
+  p = clamp(p, ivec2(0), ivec2(u_n - 1));
+  return texelFetch(u_frames, ivec3(p, u_layer), 0).r;
+}
+
 void main() {
-  float v = texture(u_frames, vec3(v_uv, u_layer)).r;
-  if (v < -20000.0) {     // no data here: draw hatching, never black sky
-    float d = mod(gl_FragCoord.x + gl_FragCoord.y, 8.0);
-    o = vec4(vec3(d < 1.5 ? 0.18 : 0.07), 1.0);
+  // Row 0 of the image is its south edge, so the top of the screen reads the last row (north up).
+  vec2 uv = 0.5 + (v_uv - 0.5) / u_zoom;
+  vec2 xy = vec2(uv.x, 1.0 - uv.y) * float(u_n) - 0.5;
+  float v;
+  if (u_smooth) {
+    ivec2 b = ivec2(floor(xy));
+    vec2 f = xy - floor(xy);
+    float a = fetchPx(b), c = fetchPx(b + ivec2(1, 0)), d = fetchPx(b + ivec2(0, 1)), e = fetchPx(b + ivec2(1, 1));
+    if (a < -1e29 || c < -1e29 || d < -1e29 || e < -1e29) v = fetchPx(ivec2(floor(xy + 0.5)));
+    else v = mix(mix(a, c, f.x), mix(d, e, f.x), f.y);
+  } else {
+    v = fetchPx(ivec2(floor(xy + 0.5)));
+  }
+  if (v < -1e29) {                       // no data: hatching, never "empty sky"
+    float h = mod(gl_FragCoord.x + gl_FragCoord.y, 10.0);
+    o = vec4(vec3(h < 2.0 ? 0.32 : 0.16), 1.0);
     return;
   }
-  float t = clamp((v - u_cuts.x) / (u_cuts.y - u_cuts.x), 0.0, 1.0);
-  float s = log(t * 10.0 + sqrt(t * t * 100.0 + 1.0)) / 2.998223;   // asinh(10 t) / asinh(10)
-  vec3 c = u_tint * min(s * 1.5, 1.0);
-  c = mix(c, vec3(1.0), smoothstep(0.62, 1.0, s));                  // brightest pixels go white
-  o = vec4(c, 1.0);
+  float t = clamp((v - u_cuts.x) / max(u_cuts.y - u_cuts.x, 1e-6), 0.0, 1.0);
+  if (u_soft) t = log(t * 10.0 + sqrt(t * t * 100.0 + 1.0)) / 2.998223;   // asinh(10 t) / asinh(10)
+  if (u_invert) t = 1.0 - t;
+  o = vec4(vec3(t), 1.0);
 }`;
-
-// Wavelength → colour, the same ramp the timeline uses.
-const RAMP = [[0.75, 0x6F, 0x7B, 0xFF], [1.6, 0x35, 0xC6, 0xC0], [2.4, 0xB9, 0xD6, 0x50],
-              [3.8, 0xFF, 0xB1, 0x3D], [5.0, 0xE8, 0x47, 0x2B]];
-
-export function wavelengthColour(um) {
-  const x = Math.min(Math.max(um, RAMP[0][0]), RAMP[RAMP.length - 1][0]);
-  for (let i = 1; i < RAMP.length; i++) {
-    if (x <= RAMP[i][0]) {
-      const a = RAMP[i - 1], b = RAMP[i], f = (x - a[0]) / (b[0] - a[0]);
-      return [1, 2, 3].map((k) => Math.round(a[k] + (b[k] - a[k]) * f));
-    }
-  }
-  return RAMP[RAMP.length - 1].slice(1);
-}
 
 export class Flipbook {
   constructor(canvas) {
     this.canvas = canvas;
-    this.gl = canvas.getContext("webgl2", { antialias: false, alpha: false });
+    this.gl = canvas.getContext("webgl2", { antialias: false, alpha: false, preserveDrawingBuffer: true });
     this.ok = !!this.gl;
     this.n = 0;
     this.layers = 0;
+    this.state = { layer: -1, cuts: [0, 1], zoom: 1, soft: true, invert: true, smooth: false };
     if (!this.ok) return;
     const gl = this.gl;
     const prog = gl.createProgram();
@@ -59,6 +67,7 @@ export class Flipbook {
       const sh = gl.createShader(type);
       gl.shaderSource(sh, src);
       gl.compileShader(sh);
+      if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) console.error(gl.getShaderInfoLog(sh));
       gl.attachShader(prog, sh);
     }
     gl.linkProgram(prog);
@@ -69,56 +78,55 @@ export class Flipbook {
     const loc = gl.getAttribLocation(prog, "a_pos");
     gl.enableVertexAttribArray(loc);
     gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
-    this.u = Object.fromEntries(["u_layer", "u_cuts", "u_tint", "u_px"].map((k) => [k, gl.getUniformLocation(prog, k)]));
+    this.u = Object.fromEntries(["u_layer", "u_cuts", "u_zoom", "u_soft", "u_invert", "u_smooth", "u_n"]
+      .map((k) => [k, gl.getUniformLocation(prog, k)]));
     this.maxLayers = gl.getParameter(gl.MAX_ARRAY_TEXTURE_LAYERS);
-    this.current = null;
     new ResizeObserver(() => this.draw()).observe(canvas);
   }
 
-  // Reserve room for `layers` frames of n×n pixels.
-  reset(n, layers) {
+  // Replace all frames. `frames` is a list of Float32Array(n*n), NO_DATA where there's nothing.
+  setFrames(n, frames) {
     if (!this.ok) return;
-    const gl = this.gl;
-    if (this.tex) gl.deleteTexture(this.tex);
-    this.n = n;
-    this.layers = Math.min(layers, this.maxLayers);
-    this.current = null;
-    this.tex = gl.createTexture();
+    const gl = this.gl, count = Math.max(1, Math.min(frames.length, this.maxLayers));
+    if (!this.tex || n !== this.n || count > this.layers) {
+      if (this.tex) gl.deleteTexture(this.tex);
+      this.tex = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_2D_ARRAY, this.tex);
+      this.layers = Math.min(Math.max(count, 8), this.maxLayers);
+      gl.texStorage3D(gl.TEXTURE_2D_ARRAY, 1, gl.R32F, n, n, this.layers);
+      for (const p of [gl.TEXTURE_MIN_FILTER, gl.TEXTURE_MAG_FILTER]) gl.texParameteri(gl.TEXTURE_2D_ARRAY, p, gl.NEAREST);
+      gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+      this.n = n;
+    }
     gl.bindTexture(gl.TEXTURE_2D_ARRAY, this.tex);
-    gl.texStorage3D(gl.TEXTURE_2D_ARRAY, 1, gl.R16F, n, n, Math.max(this.layers, 1));
-    for (const p of [gl.TEXTURE_MIN_FILTER, gl.TEXTURE_MAG_FILTER]) gl.texParameteri(gl.TEXTURE_2D_ARRAY, p, gl.NEAREST);
-    for (const p of [gl.TEXTURE_WRAP_S, gl.TEXTURE_WRAP_T]) gl.texParameteri(gl.TEXTURE_2D_ARRAY, p, gl.CLAMP_TO_EDGE);
-    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+    frames.slice(0, this.layers).forEach((f, k) => {
+      gl.texSubImage3D(gl.TEXTURE_2D_ARRAY, 0, 0, 0, k, n, n, 1, gl.RED, gl.FLOAT, f);
+    });
     this.draw();
   }
 
-  // `halfFloats` is a Uint16Array of n×n float16 values, straight from the server.
-  addFrame(layer, halfFloats) {
-    if (!this.ok || layer >= this.layers) return;
-    const gl = this.gl;
-    gl.bindTexture(gl.TEXTURE_2D_ARRAY, this.tex);
-    gl.texSubImage3D(gl.TEXTURE_2D_ARRAY, 0, 0, 0, layer, this.n, this.n, 1, gl.RED, gl.HALF_FLOAT, halfFloats);
-  }
-
-  show(layer, cuts, wavelengthUm) {
-    this.current = { layer, cuts, tint: wavelengthColour(wavelengthUm).map((v) => v / 255) };
+  set(changes) {
+    Object.assign(this.state, changes);
     this.draw();
   }
 
   draw() {
     if (!this.ok) return;
-    const gl = this.gl, c = this.canvas;
+    const gl = this.gl, c = this.canvas, s = this.state;
     const w = Math.round(c.clientWidth * devicePixelRatio), h = Math.round(c.clientHeight * devicePixelRatio);
-    if (w === 0 || h === 0) return;
+    if (!w || !h) return;
     if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
     gl.viewport(0, 0, w, h);
     gl.clearColor(0, 0, 0, 1);
     gl.clear(gl.COLOR_BUFFER_BIT);
-    if (!this.current || !this.tex) return;
-    gl.uniform1f(this.u.u_layer, this.current.layer);
-    gl.uniform2f(this.u.u_cuts, this.current.cuts[0], this.current.cuts[1]);
-    gl.uniform3fv(this.u.u_tint, this.current.tint);
-    gl.uniform1f(this.u.u_px, w / Math.max(this.n, 1));
+    if (!this.tex || s.layer < 0) return;
+    gl.uniform1i(this.u.u_layer, s.layer);
+    gl.uniform2f(this.u.u_cuts, s.cuts[0], s.cuts[1]);
+    gl.uniform1f(this.u.u_zoom, s.zoom);
+    gl.uniform1i(this.u.u_soft, s.soft ? 1 : 0);
+    gl.uniform1i(this.u.u_invert, s.invert ? 1 : 0);
+    gl.uniform1i(this.u.u_smooth, s.smooth ? 1 : 0);
+    gl.uniform1i(this.u.u_n, this.n);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   }
 }

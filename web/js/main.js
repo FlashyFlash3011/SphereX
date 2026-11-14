@@ -2,6 +2,9 @@
 import A from "../vendor/aladin-lite-3.8.2/aladin.js";
 import { angleText, decText, degText, raText, wavelengthColour } from "./format.js";
 import { Results } from "./results.js";
+import { Flip } from "./flip.js";
+
+const flip = new Flip();
 
 const $ = (id) => document.getElementById(id);
 
@@ -331,6 +334,8 @@ async function search() {
 
 function openResults(data) {
   results.show(data, chosen);
+  showSubview("coverage");
+  if (data.total) flip.open({ ...chosen }, size);   // start cutting out photos now, so the flipbook is ready
   $("tab-results").disabled = false;
   $("tab-results").removeAttribute("title");
   showView("results");
@@ -340,8 +345,24 @@ function openResults(data) {
   }
 }
 
+function showSubview(which) {
+  const fb = which === "flipbook";
+  document.body.classList.toggle("flip-mode", fb && document.body.classList.contains("results-mode"));
+  $("flip-stage").hidden = !fb;
+  $("flip-settings").hidden = !fb;
+  for (const [id, on] of [["view-coverage", !fb], ["view-flipbook", fb]]) {
+    $(id).setAttribute("aria-pressed", String(on));
+    $(id).setAttribute("aria-selected", String(on));
+  }
+  if (!fb) flip.pause();
+}
+$("view-coverage").addEventListener("click", () => showSubview("coverage"));
+$("view-flipbook").addEventListener("click", () => showSubview("flipbook"));
+
 function showView(view) {
   const res = view === "results";
+  if (!res) { document.body.classList.remove("flip-mode"); flip.pause(); }
+  else if ($("view-flipbook").getAttribute("aria-pressed") === "true") document.body.classList.add("flip-mode");
   document.body.classList.toggle("results-mode", res);
   $("results").hidden = !res;
   $("legend").hidden = !res;

@@ -271,3 +271,11 @@ def test_search_endpoint_validates_and_filters(monkeypatch):
     assert {p["det"] for p in r2["photos"]} == {1, 2} and len(called) == 1  # second call served from memory
     r3 = run(date_to="2025-01-01")
     assert r3["total"] == 0 and r3["total_all"] == 6
+
+
+def test_chosen_detector_is_built_first():
+    s = stack.Stack(10.0, 20.0, 32, fake_exposures(12), first_det=3)
+    order = s.build_order()
+    dets = [s.exposures[i].det for i in order]
+    assert dets[:2] == [3, 3] and sorted(order) == list(range(12))
+    assert set(dets[2:]) == {1, 2, 4, 5, 6}

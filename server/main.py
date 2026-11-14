@@ -185,7 +185,7 @@ def search(ra: float, dec: float, dets: str = Query("1,2,3,4,5,6", max_length=11
 
 
 @app.post("/api/stacks")
-def create_stack(request: Request, ra: float, dec: float, size: int = 64):
+def create_stack(request: Request, ra: float, dec: float, size: int = 64, first: int = Query(0, ge=0, le=6)):
     """Start (or reuse) the stack of frames for a position. Frames arrive via /status."""
     try:
         ra, dec = positions.validate(ra, dec)
@@ -206,7 +206,9 @@ def create_stack(request: Request, ra: float, dec: float, size: int = 64):
             raise HTTPException(429, "The server is busy with other searches. Try again in a minute.")
         _building[sid] = who
     try:
-        s = stack.start(ra, dec, size)
+        with _lock:
+            known = _searches.get((round(ra, 4), round(dec, 4)))
+        s = stack.start(ra, dec, size, known, first or None)
     except FetchError:
         with _lock:
             _building.pop(sid, None)

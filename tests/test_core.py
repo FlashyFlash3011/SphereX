@@ -154,6 +154,18 @@ def test_resample_recovers_a_shifted_star():
     assert np.isnan(edge[:, :9]).all()  # outside the fetched data = no data, not zero
 
 
+def test_header_end_finds_where_pixels_start():
+    card = lambda text: text.encode().ljust(80)  # noqa: E731
+    primary = (card("SIMPLE  = T") + card("END")).ljust(2880)
+    short = (card("XTENSION= 'IMAGE'") * 5 + card("END")).ljust(2880 * 8)   # detectors 3-6
+    long_ = (card("XTENSION= 'IMAGE'") * 300 + card("END")).ljust(2880 * 9)  # detectors 1-2
+    assert cutout.header_end(primary + short, 0) == 2880
+    assert cutout.header_end(primary + short, 2880) == 2880 * 2
+    assert cutout.header_end(primary + long_, 2880) == 2880 * 10
+    with pytest.raises(ValueError):
+        cutout.header_end(primary + card("NOEND") * 10, 2880)
+
+
 def test_target_grid_is_north_up_east_left():
     w = cutout.target_wcs(150.0, 20.0, 64)
     ra0, dec0 = w.wcs_pix2world([[31.5, 31.5]], 0)[0]
@@ -184,7 +196,7 @@ def test_stack_builds_reports_missing_and_reloads(monkeypatch, tmp_path):
     def fake_meta(key, ra, dec):
         if key.endswith("f4.fits"):
             raise net.FetchError("down")
-        return cutout.Meta(key, None, 100.0, 100.0, 1.2, 0.03, 60900.5, 2)
+        return cutout.Meta(key, None, 100.0, 100.0, 1.2, 0.03, 60900.5, 2, 25920)
 
     monkeypatch.setattr(cutout, "read_meta", fake_meta)
     monkeypatch.setattr(cutout, "cutout", lambda meta, ra, dec, n: np.full((n, n), 3.0, np.float32))

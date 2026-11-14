@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>SphereX: watch the sky change</title>
+  <meta name="description" content="Pick any place in the sky and watch how it changed, in NASA SPHEREx infrared images.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..700&display=swap">
+  <link rel="stylesheet" href="css/tokens.css">
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+  <main class="desk">
+    <section class="plate-area" aria-label="Image">
+      <div class="plate" id="plate">
+        <canvas id="view" class="plate-view" role="img" aria-label="SPHEREx image of the chosen place"></canvas>
+        <div class="plate-empty" id="empty">
+          <h1>Watch the sky change</h1>
+          <p>Pick a place. SphereX finds every image NASA's SPHEREx telescope took of it and plays them in order.</p>
+        </div>
+        <span class="tick tl"></span><span class="tick tr"></span><span class="tick bl"></span><span class="tick br"></span>
+        <p class="compass" id="compass" hidden>North is up, east is left</p>
+      </div>
+    </section>
+
+    <section class="log" aria-label="Search and details">
+      <form class="search" id="search" autocomplete="off">
+        <label for="q">Place in the sky</label>
+        <div class="search-row">
+          <input id="q" name="q" type="text" inputmode="text" maxlength="64" spellcheck="false"
+                 placeholder="Barnard's Star, or 269.45 4.77" aria-describedby="hint">
+          <button type="submit">Search</button>
+        </div>
+        <p class="hint" id="hint">A name we know, or RA and Dec in degrees.</p>
+        <ul class="examples" id="examples" aria-label="Places to try"></ul>
+      </form>
+
+      <div class="entry" id="entry" hidden>
+        <p class="place" id="place"></p>
+        <p class="label">Observed on</p>
+        <p class="date" id="date">&nbsp;</p>
+        <p class="time" id="time">&nbsp;</p>
+        <dl class="facts">
+          <div><dt>Colour</dt><dd><span class="swatch" id="swatch"></span><span id="colour"></span></dd></div>
+          <div><dt>Detector</dt><dd id="detector"></dd></div>
+          <div><dt>Visit</dt><dd id="visit"></dd></div>
+          <div><dt>Frame</dt><dd id="frame"></dd></div>
+        </dl>
+        <p class="source"><a id="source" target="_blank" rel="noopener noreferrer">Original file at NASA's archive</a></p>
+      </div>
+
+      <p class="status" id="status" role="status" aria-live="polite"></p>
+    </section>
+
+    <section class="bar" id="bar" aria-label="Timeline" hidden>
+      <div class="transport">
+        <button type="button" id="prev" aria-label="Previous frame">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10.5 3 5 8l5.5 5"/></svg>
+        </button>
+        <button type="button" id="play" class="play" aria-pressed="false" aria-label="Play">
+          <svg viewBox="0 0 16 16" aria-hidden="true" class="i-play"><path d="M5 3v10l8-5z"/></svg>
+          <svg viewBox="0 0 16 16" aria-hidden="true" class="i-pause"><path d="M5 3v10M11 3v10"/></svg>
+        </button>
+        <button type="button" id="next" aria-label="Next frame">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 3 11 8l-5.5 5"/></svg>
+        </button>
+        <label class="speed">Speed
+          <select id="fps">
+            <option value="2">2 a second</option>
+            <option value="4" selected>4 a second</option>
+            <option value="8">8 a second</option>
+          </select>
+        </label>
+      </div>
+      <div class="timeline">
+        <canvas id="ticks" aria-hidden="true"></canvas>
+        <input id="scrub" type="range" min="0" max="0" step="1" value="0" aria-label="Frame">
+      </div>
+    </section>
+  </main>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,27 @@
+/* Design tokens. See web/DESIGN.md for what each one is for. */
+:root {
+  --darkroom: #0E0D0B; /* unslop-ignore: chosen darkroom base, see DESIGN.md */
+  --bench: #1A1815;
+  --rule: #2E2A24;
+  --paper: #ECE6DA;
+  --dust: #9C9486;
+  --safelight: #F0A04B;
+
+  --font: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --narrow: "wdth" 68;
+  --text-s: 13px;
+  --text-m: 15px;
+  --text-l: 20px;
+  --text-xl: 28px;
+  --text-date: clamp(40px, 5.2vw, 76px);
+
+  --gap-1: 4px;
+  --gap-2: 8px;
+  --gap-3: 16px;
+  --gap-4: 24px;
+  --gap-5: 40px;
+
+  --corner: 4px;
+  --quick: 120ms cubic-bezier(.2, 0, 0, 1);
+  --bar: 104px; /* height of the timeline bar */
+}

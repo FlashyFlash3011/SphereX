@@ -1,7 +1,8 @@
 """Cut a small north-up square out of one 65 MB SPHEREx exposure without downloading it.
 
 SPHEREx files are uncompressed FITS, so the pixels we want sit at a known byte offset.
-Three small reads per exposure: the header (where is the sky on this detector?), the
+Three small reads per exposure: the header (where is the sky on this detector, and where
+do its pixels start?), the
 wavelength table at the end of the file, and the image rows that cover our square.
 """
 from __future__ import annotations
@@ -21,8 +22,7 @@ _astropy_log.setLevel("ERROR")
 warnings.filterwarnings("ignore", category=FITSFixedWarning)
 
 NX = NY = 2040  # detector size in pixels
-IMAGE_OFFSET = 25_920  # byte where IMAGE pixels start (primary header + IMAGE header)
-HEAD_BYTES = 25_920
+HEAD_BYTES = 34_560  # enough for the primary + IMAGE headers (their length varies by detector)
 TAIL_BYTES = 8_640  # WCS-WAVE header + table, the last extension of the file
 ROW_BYTES = NX * 4  # float32
 PIXEL_ARCSEC = 6.15
@@ -43,10 +43,24 @@ class Meta:
     bw_um: float  # width of that wavelength band
     mjd: float
     det: int
+    data_offset: int = 0  # byte where this file's IMAGE pixels start
+
+
+def header_end(buf: bytes, start: int) -> int:
+    """Byte just after the FITS header that begins at `start` (headers are 80-byte cards in
+    2880-byte blocks, closed by an END card). Raises ValueError if the END card isn't in `buf`."""
+    i = start
+    while i + 80 <= len(buf):
+        if buf[i:i + 80].rstrip() == b"END":
+            return (i // 2880 + 1) * 2880
+        i += 80
+    raise ValueError("FITS header is longer than expected")
 
 
 def parse_meta(key: str, head: bytes, tail: bytes, ra: float, dec: float) -> Meta:
-    h_img = fits.Header.fromstring(head[2880:HEAD_BYTES])
+    primary_end = header_end(head, 0)
+    data_offset = header_end(head, primary_end)  # 25,920 for detectors 3-6, 28,800 for 1-2
+    h_img = fits.Header.fromstring(head[primary_end:data_offset])
     start = tail.find(b"XTENSION")
     if start < 0:
         raise ValueError("wavelength table not found")
@@ -60,7 +74,8 @@ def parse_meta(key: str, head: bytes, tail: bytes, ra: float, dec: float) -> Met
         raise OffDetector("position is off this detector")
     lam, bw = (float(v) for v in wave.pixel_to_world_values(x, y))
     mjd = float(h_img.get("MJD-AVG") or h_img.get("MJD-OBS"))
-    return Meta(key=key, wcs=wcs, x=x, y=y, lam_um=lam, bw_um=bw, mjd=mjd, det=int(h_img.get("DETECTOR", 0)))
+    return Meta(key=key, wcs=wcs, x=x, y=y, lam_um=lam, bw_um=bw, mjd=mjd, det=int(h_img.get("DETECTOR", 0)),
+                data_offset=data_offset)
 
 
 def read_meta(key: str, ra: float, dec: float) -> Meta:
@@ -118,7 +133,7 @@ def display_cuts(img: np.ndarray) -> tuple[float, float]:
         return 0.0, 1.0
     med = float(np.median(v))
     sig = float(1.4826 * np.median(np.abs(v - med))) or 1e-3
-    hi = max(float(np.percentile(v, 99.7)), med + 12 * sig)
+    hi = max(float(np.percentile(v, 99.0)), med + 15 * sig)
     return med - 2 * sig, hi
 
 
@@ -134,6 +149,6 @@ def cutout(meta: Meta, ra: float, dec: float, n: int) -> np.ndarray:
     if y1 <= y0 or x1 <= x0:
         raise OffDetector("position is off this detector")
     raw = net.fetch(net.s3_url(meta.key),
-                    byte_range=(IMAGE_OFFSET + y0 * ROW_BYTES, IMAGE_OFFSET + (y1 + 1) * ROW_BYTES - 1))
+                    byte_range=(meta.data_offset + y0 * ROW_BYTES, meta.data_offset + (y1 + 1) * ROW_BYTES - 1))
     rows = np.frombuffer(raw, dtype=">f4").reshape(y1 - y0 + 1, NX)[:, x0:x1 + 1].astype(np.float32)
     return subtract_background(resample(rows, x0, y0, xs, ys))

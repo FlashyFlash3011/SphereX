@@ -6,6 +6,7 @@ retried a few times, because the archive drops requests now and then.
 from __future__ import annotations
 
 import http.client
+import logging
 import random
 import time
 import urllib.error
@@ -21,6 +22,7 @@ S3_BASE = "https://nasa-irsa-spherex.s3.us-east-1.amazonaws.com/"
 TIMEOUT_S = 30
 RETRY_WAITS_S = (1.0, 3.0, 9.0)
 USER_AGENT = "SphereX/0.1"
+log = logging.getLogger("spherex.net")
 
 
 class FetchError(RuntimeError):
@@ -66,10 +68,12 @@ def fetch(url: str, byte_range: tuple[int, int] | None = None, suffix: int | Non
             raise
         except urllib.error.HTTPError as e:
             last = e
+            log.warning("fetch %s attempt %d: HTTP %s", urlsplit(url).hostname, attempt + 1, e.code)
             if e.code not in (429, 500, 502, 503, 504):
                 break
         except (urllib.error.URLError, http.client.HTTPException, TimeoutError, OSError) as e:
             last = e
+            log.warning("fetch %s attempt %d: %s %s", urlsplit(url).hostname, attempt + 1, type(e).__name__, str(e)[:200])
         if attempt < len(RETRY_WAITS_S):
             _sleep(RETRY_WAITS_S[attempt] + random.random() * 0.5)
     raise FetchError(f"fetch failed: {type(last).__name__}")

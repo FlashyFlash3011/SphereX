@@ -4,6 +4,7 @@ Run:  uvicorn server.main:app --port 8000
 """
 from __future__ import annotations
 
+import logging
 import os
 import re
 import threading
@@ -19,6 +20,7 @@ from fastapi.staticfiles import StaticFiles
 from spherex import channels, cutout, irsa, net, positions, stack
 from spherex.net import FetchError
 
+logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 ROOT = Path(__file__).resolve().parent.parent
 CACHE = Path(os.environ.get("SPHEREX_CACHE", ROOT / "var" / "cache"))
 MAX_BUILDING = 3  # stacks being built at once, all visitors together

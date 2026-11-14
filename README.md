@@ -25,7 +25,16 @@ How it is built (planned):
 
 ## How to run
 
-Not runnable yet. Instructions will be added here as the pipeline and viewer land.
+Needs Python 3.11 (Mac, Linux or WSL; no GPU needed).
+
+```bash
+git clone https://github.com/FlashyFlash3011/SphereX.git
+cd SphereX
+./setup.sh
+source .venv/bin/activate
+```
+
+The app itself isn't runnable yet. Instructions will be added here as the pipeline and viewer land.
 
 ## Credits and data
 

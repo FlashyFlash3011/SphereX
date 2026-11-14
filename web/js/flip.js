@@ -37,11 +37,102 @@ function decode(u16) {
 }
 
 // Mean of several cut-outs, pixel by pixel, ignoring pixels without data.
-function addUp(list, size) {
-  const sum = new Float64Array(size), count = new Uint16Array(size), out = new Float32Array(size);
-  for (const a of list) for (let k = 0; k < size; k++) if (hasData(a[k])) { sum[k] += a[k]; count[k]++; }
-  for (let k = 0; k < size; k++) out[k] = count[k] ? sum[k] / count[k] : NO_DATA;
-  return out;
+function addUp(list, size) { return visitStats(list, size).mean; }
+
+function median(values) {
+  if (!values.length) return 0;
+  const a = Float64Array.from(values).sort();
+  return a[Math.floor(a.length / 2)];
+}
+
+// Typical noise of an image: robust spread of its pixels (stars barely affect it).
+function imageNoise(img) {
+  const v = [];
+  for (let k = 0; k < img.length; k++) if (hasData(img[k])) v.push(img[k]);
+  const m = median(v);
+  return 1.4826 * median(v.map((x) => Math.abs(x - m))) || 1e-3;
+}
+
+// One visit, added up: the mean image, and how uncertain each pixel of that mean is.
+// With 3 or more photos, the uncertainty comes from how much the photos disagree (measured, not assumed);
+// that also absorbs small alignment errors, which makes the comparison cautious.
+function visitStats(list, size) {
+  const sum = new Float64Array(size), sq = new Float64Array(size), count = new Uint16Array(size);
+  for (const a of list) for (let k = 0; k < size; k++) if (hasData(a[k])) { sum[k] += a[k]; sq[k] += a[k] * a[k]; count[k]++; }
+  const mean = new Float32Array(size), err = new Float32Array(size);
+  for (let k = 0; k < size; k++) mean[k] = count[k] ? sum[k] / count[k] : NO_DATA;
+  const floor = imageNoise(mean);
+  for (let k = 0; k < size; k++) {
+    const n = count[k];
+    if (!n) { err[k] = NO_DATA; continue; }
+    if (n >= 3) {
+      const variance = Math.max((sq[k] - (sum[k] * sum[k]) / n) / (n - 1), 0);
+      err[k] = Math.max(Math.sqrt(variance / n), 0.5 * floor);
+    } else {
+      err[k] = floor;
+    }
+  }
+  return { mean, err, n: list.length };
+}
+
+// How significant the change from visit A to visit B is, pixel by pixel:
+// S = (B - A) / sqrt(errA² + errB² + (3% of the brighter value)²), then rescaled if the noise
+// turns out larger than expected (resampling makes neighbouring pixels' noise move together).
+// Stars are smaller than a SPHEREx pixel, so a star's pixel pattern depends on where it lands inside a
+// pixel, which differs between visits. Pixels on a steep star edge get extra allowance: how much they would
+// change if the star sat a fifth of a pixel differently. Measured on 14 Nov: this removed all 5 false alarms
+// in an ordinary field while Barnard's Star's real 1-1.7 pixel motion still stood out.
+const BRIGHT_STAR_ALLOWANCE = 0.03;
+const PLACEMENT_ALLOWANCE_PX = 0.2;
+function significance(A, B, size) {
+  const n = Math.round(Math.sqrt(size)), S = new Float32Array(size), valid = [];
+  const top = (k) => Math.max(hasData(A.mean[k]) ? A.mean[k] : -Infinity, hasData(B.mean[k]) ? B.mean[k] : -Infinity);
+  const slope = (k, step) => {   // half the difference of the neighbours on each side, if both have data
+    const p = top(k + step), q = top(k - step);
+    return Number.isFinite(p) && Number.isFinite(q) ? (p - q) / 2 : 0;
+  };
+  for (let k = 0; k < size; k++) {
+    const a = A.mean[k], b = B.mean[k];
+    if (!hasData(a) || !hasData(b) || !hasData(A.err[k]) || !hasData(B.err[k])) { S[k] = NO_DATA; continue; }
+    const x = k % n, y = (k - x) / n;
+    const gx = x > 0 && x < n - 1 ? slope(k, 1) : 0, gy = y > 0 && y < n - 1 ? slope(k, n) : 0;
+    const sys = BRIGHT_STAR_ALLOWANCE * Math.max(Math.abs(a), Math.abs(b));
+    const place = PLACEMENT_ALLOWANCE_PX * Math.hypot(gx, gy);
+    S[k] = (b - a) / Math.sqrt(A.err[k] ** 2 + B.err[k] ** 2 + sys * sys + place * place);
+    valid.push(S[k]);
+  }
+  const m = median(valid), width = 1.4826 * median(valid.map((x) => Math.abs(x - m)));
+  if (width > 1) for (let k = 0; k < size; k++) if (hasData(S[k])) S[k] /= width;
+  return S;
+}
+
+// Clear changes: local peaks at least `thr` times the noise, backed by a neighbour (not one lone pixel).
+function findChanges(S, n, thr) {
+  const out = [];
+  for (let y = 1; y < n - 1; y++) {
+    for (let x = 1; x < n - 1; x++) {
+      const v = S[y * n + x];
+      if (!hasData(v) || Math.abs(v) < thr) continue;
+      let peak = true, support = 0;
+      for (let dy = -1; dy <= 1 && peak; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          if (!dx && !dy) continue;
+          const w = S[(y + dy) * n + x + dx];
+          if (!hasData(w)) continue;
+          if (Math.sign(w) === Math.sign(v) && Math.abs(w) > Math.abs(v)) { peak = false; break; }
+          if (Math.sign(w) === Math.sign(v) && Math.abs(w) >= thr / 2) support++;
+        }
+      }
+      if (peak && support >= 1) out.push({ x, y, s: v });
+    }
+  }
+  // One ring per change: drop peaks within 3 pixels of a stronger one of the same sign.
+  out.sort((a, b) => Math.abs(b.s) - Math.abs(a.s));
+  const kept = [];
+  for (const c of out) {
+    if (!kept.some((k) => Math.sign(k.s) === Math.sign(c.s) && (k.x - c.x) ** 2 + (k.y - c.y) ** 2 <= 9)) kept.push(c);
+  }
+  return kept.slice(0, 40);
 }
 
 async function getJson(url, options) {
@@ -62,6 +153,8 @@ export class Flip {
     this.timer = null;
     this.band = { kind: "det", det: DEFAULT_DET };
     this.mode = "visits";
+    this.compare = "off";
+    this.thr = 5;
     this.size = 64;
     this.place = null;
     this.bindSettings();
@@ -151,12 +244,42 @@ export class Flip {
       const byVisit = new Map();
       for (const f of members) { if (!byVisit.has(f.pass)) byVisit.set(f.pass, []); byVisit.get(f.pass).push(f); }
       const nVisits = new Set(run.exposures.map((e) => e.pass)).size;
-      views = [...byVisit.entries()].sort((a, b) => a[0] - b[0]).map(([v, list]) => ({
-        title: rangeText(list[0].utc, list[list.length - 1].utc),
-        sub: `Visit ${v + 1} of ${nVisits}, ${list.length} photo${list.length === 1 ? "" : "s"} added together`,
-        label: `Visit ${v + 1}`, small: rangeText(list[0].utc, list[list.length - 1].utc),
-        data: addUp(list.map((f) => run.px.get(f.i)), n2),
+      const groups = [...byVisit.entries()].sort((a, b) => a[0] - b[0]).map(([v, list]) => ({
+        v, list, range: rangeText(list[0].utc, list[list.length - 1].utc),
+        stats: visitStats(list.map((f) => run.px.get(f.i)), n2),
       }));
+      if (this.compare === "off") {
+        views = groups.map((g) => ({
+          title: g.range,
+          sub: `Visit ${g.v + 1} of ${nVisits}, ${g.list.length} photo${g.list.length === 1 ? "" : "s"} added together`,
+          label: `Visit ${g.v + 1}`, small: g.range, data: g.stats.mean,
+        }));
+      } else {
+        for (let k = 1; k < groups.length; k++) {
+          const ref = this.compare === "first" ? groups[0] : groups[k - 1], now = groups[k];
+          // The colour trap: a detector spans a range of colours, and stars differ in brightness across it.
+          // Compare only photos taken in colours (channels) that BOTH visits have.
+          const shared = new Set(ref.list.map((f) => f.channel).filter((c) => now.list.some((f) => f.channel === c)));
+          const refList = ref.list.filter((f) => shared.has(f.channel)), nowList = now.list.filter((f) => shared.has(f.channel));
+          if (!shared.size) {
+            views.push({ title: `${now.range} vs ${ref.range}`, label: `Visit ${now.v + 1} vs ${ref.v + 1}`, small: now.range,
+                         sub: `Visit ${now.v + 1} and visit ${ref.v + 1} share no colours in this band, so they can't be compared fairly.`,
+                         data: new Float32Array(n2).fill(NO_DATA), base: now.stats.mean, changes: [] });
+            continue;
+          }
+          const A = visitStats(refList.map((f) => run.px.get(f.i)), n2), B = visitStats(nowList.map((f) => run.px.get(f.i)), n2);
+          const S = significance(A, B, n2);
+          const changes = findChanges(S, run.n, this.thr);
+          views.push({
+            title: `${now.range} vs ${ref.range}`,
+            sub: `Visit ${now.v + 1} compared with visit ${ref.v + 1}, using the ${shared.size} colour${shared.size === 1 ? "" : "s"} both share: `
+              + `${changes.length || "no"} clear change${changes.length === 1 ? "" : "s"} (${this.thr}× the noise or more)`,
+            label: `Visit ${now.v + 1} vs ${ref.v + 1}`, small: now.range,
+            data: S, base: B.mean, changes,
+          });
+        }
+        this.noCompare = groups.length < 2;
+      }
     } else {
       views = members.map((f, k) => ({
         title: dayText(f.utc),
@@ -167,7 +290,11 @@ export class Flip {
     }
     this.views = views;
     if (this.at >= views.length) this.at = 0;
-    this.book.setFrames(run.n, views.map((v) => v.data));
+    const diff = views.length > 0 && !!views[0].base;
+    // In compare mode the texture holds the change maps first, then the plain image under each one.
+    this.book.setFrames(run.n, diff ? [...views.map((v) => v.data), ...views.map((v) => v.base)] : views.map((v) => v.data));
+    this.book.set({ diff, thr: this.thr });
+    $("flip-legend").hidden = !diff;
     this.updateCuts();
     this.render();
     if (!this.timer && !reducedMotion && views.length >= 2 && this._autoplay !== false) { this._autoplay = false; this.play(); }
@@ -175,7 +302,7 @@ export class Flip {
 
   updateCuts() {
     const vals = [];
-    for (const v of this.views) for (let k = 0; k < v.data.length; k += 3) if (hasData(v.data[k])) vals.push(v.data[k]);
+    for (const v of this.views) { const img = v.base || v.data; for (let k = 0; k < img.length; k += 3) if (hasData(img[k])) vals.push(img[k]); }
     if (!vals.length) return;
     vals.sort((a, b) => a - b);
     const pick = (p) => vals[Math.min(vals.length - 1, Math.max(0, Math.floor((p / 100) * vals.length)))];
@@ -189,14 +316,20 @@ export class Flip {
     const v = this.views[this.at];
     if (!this.run || !this.run.id) { $("flip-title").textContent = ""; $("flip-sub").textContent = ""; }
     if (!v) {
-      if (this.run && this.run.id) this.empty(this.run.done ? "No photos in this colour band. Pick another band." : "Loading the first photos of this colour band…");
+      if (this.run && this.run.id) {
+        if (this.compare !== "off" && this.noCompare && this.run.meta.size) {
+          this.empty("Only one visit has photos in this colour band so far, so there's nothing to compare yet. Pick another band, or wait for more photos.");
+        } else {
+          this.empty(this.run.done ? "No photos in this colour band. Pick another band." : "Loading the first photos of this colour band…");
+        }
+      }
       this.renderStrip();
       return;
     }
     $("flip-empty").hidden = true;
     $("flip-title").textContent = v.title;
     $("flip-sub").textContent = v.sub;
-    this.book.set({ layer: this.at });
+    this.book.set({ layer: this.at, base: this.views.length + this.at });
     this.renderStrip();
     this.drawMarker();
   }
@@ -244,6 +377,8 @@ export class Flip {
     c.width = Math.round(w * dpr); c.height = Math.round(h * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, w, h);
+    const view = this.views[this.at];
+    if (view && view.changes && this.run) this.drawChanges(ctx, w, h, view.changes);
     if (!$("flip-marker").checked || !this.views.length) return;
     // The search position is the centre of the patch; draw an open crosshair so the star stays visible.
     const zoom = this.book.state.zoom, px = (w / (this.run ? this.run.n : 64)) * zoom;
@@ -256,6 +391,21 @@ export class Flip {
       ctx.lineTo(w / 2 + dx * (gap + len), h / 2 + dy * (gap + len));
     }
     ctx.stroke();
+  }
+
+  // Rings around clear changes. Image row 0 is the south edge, so flip y for the screen.
+  drawChanges(ctx, w, h, changes) {
+    const n = this.run.n, zoom = this.book.state.zoom, px = (w / n) * zoom;
+    ctx.lineWidth = 2;
+    for (const c of changes) {
+      const sx = (0.5 + ((c.x + 0.5) / n - 0.5) * zoom) * w;
+      const sy = (0.5 + ((1 - (c.y + 0.5) / n) - 0.5) * zoom) * h;
+      if (sx < 0 || sy < 0 || sx > w || sy > h) continue;
+      ctx.strokeStyle = c.s > 0 ? "#FF8F29" : "#299EFF";
+      ctx.beginPath();
+      ctx.arc(sx, sy, Math.max(7, px * 2.2), 0, Math.PI * 2);
+      ctx.stroke();
+    }
   }
 
   go(k) {
@@ -325,11 +475,30 @@ export class Flip {
     for (const b of $("flip-mode").querySelectorAll("button")) {
       b.addEventListener("click", () => {
         this.mode = b.dataset.mode;
+        if (this.mode === "photos" && this.compare !== "off") $("flip-compare").querySelector('[data-compare="off"]').click();
         for (const o of $("flip-mode").querySelectorAll("button")) o.setAttribute("aria-pressed", String(o === b));
         this.at = 0;
         this.rebuild();
       });
     }
+    for (const b of $("flip-compare").querySelectorAll("button")) {
+      b.addEventListener("click", () => {
+        this.compare = b.dataset.compare;
+        for (const o of $("flip-compare").querySelectorAll("button")) o.setAttribute("aria-pressed", String(o === b));
+        $("thr-setting").hidden = this.compare === "off";
+        if (this.compare !== "off" && this.mode !== "visits") {   // comparing works on whole visits
+          this.mode = "visits";
+          for (const o of $("flip-mode").querySelectorAll("button")) o.setAttribute("aria-pressed", String(o.dataset.mode === "visits"));
+        }
+        this.at = 0;
+        this.rebuild();
+      });
+    }
+    $("flip-thr").addEventListener("input", (e) => {
+      this.thr = Number(e.target.value);
+      $("flip-thr-out").textContent = `${this.thr}×`;
+      this.scheduleRebuild();
+    });
     $("flip-interval").addEventListener("input", (e) => { $("flip-interval-out").textContent = `${e.target.value} ms`; });
     $("flip-zoom").addEventListener("input", (e) => {
       $("flip-zoom-out").textContent = `${e.target.value}×`;

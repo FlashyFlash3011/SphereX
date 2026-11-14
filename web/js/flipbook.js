@@ -19,12 +19,22 @@ uniform bool u_soft;     // asinh stretch
 uniform bool u_invert;
 uniform bool u_smooth;   // bilinear between pixels
 uniform int u_n;
+uniform bool u_diff;     // layer holds change significance; u_base holds the plain image underneath
+uniform int u_base;
+uniform float u_thr;     // only colour changes at least this many times the noise
 in vec2 v_uv;
 out vec4 o;
 
-float fetchPx(ivec2 p) {
+float fetchAt(ivec2 p, int layer) {
   p = clamp(p, ivec2(0), ivec2(u_n - 1));
-  return texelFetch(u_frames, ivec3(p, u_layer), 0).r;
+  return texelFetch(u_frames, ivec3(p, layer), 0).r;
+}
+float fetchPx(ivec2 p) { return fetchAt(p, u_layer); }
+
+float shade(float v) {
+  float t = clamp((v - u_cuts.x) / max(u_cuts.y - u_cuts.x, 1e-6), 0.0, 1.0);
+  if (u_soft) t = log(t * 10.0 + sqrt(t * t * 100.0 + 1.0)) / 2.998223;   // asinh(10 t) / asinh(10)
+  return u_invert ? 1.0 - t : t;
 }
 
 void main() {
@@ -46,10 +56,17 @@ void main() {
     o = vec4(vec3(h < 2.0 ? 0.32 : 0.16), 1.0);
     return;
   }
-  float t = clamp((v - u_cuts.x) / max(u_cuts.y - u_cuts.x, 1e-6), 0.0, 1.0);
-  if (u_soft) t = log(t * 10.0 + sqrt(t * t * 100.0 + 1.0)) / 2.998223;   // asinh(10 t) / asinh(10)
-  if (u_invert) t = 1.0 - t;
-  o = vec4(vec3(t), 1.0);
+  if (u_diff) {
+    // Faint sky underneath for orientation; orange = got brighter, blue = got dimmer.
+    float b = fetchAt(ivec2(floor(xy + 0.5)), u_base);
+    float g = b < -1e29 ? 0.5 : mix(0.5, shade(b), 0.45);
+    vec3 col = vec3(g);
+    float a = clamp((abs(v) - u_thr) / u_thr, 0.0, 1.0);
+    if (abs(v) >= u_thr) col = mix(col, v > 0.0 ? vec3(1.0, 0.56, 0.16) : vec3(0.16, 0.62, 1.0), 0.55 + 0.45 * a);
+    o = vec4(col, 1.0);
+    return;
+  }
+  o = vec4(vec3(shade(v)), 1.0);
 }`;
 
 export class Flipbook {
@@ -59,7 +76,7 @@ export class Flipbook {
     this.ok = !!this.gl;
     this.n = 0;
     this.layers = 0;
-    this.state = { layer: -1, cuts: [0, 1], zoom: 1, soft: true, invert: true, smooth: false };
+    this.state = { layer: -1, cuts: [0, 1], zoom: 1, soft: true, invert: true, smooth: false, diff: false, base: 0, thr: 5 };
     if (!this.ok) return;
     const gl = this.gl;
     const prog = gl.createProgram();
@@ -78,7 +95,7 @@ export class Flipbook {
     const loc = gl.getAttribLocation(prog, "a_pos");
     gl.enableVertexAttribArray(loc);
     gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
-    this.u = Object.fromEntries(["u_layer", "u_cuts", "u_zoom", "u_soft", "u_invert", "u_smooth", "u_n"]
+    this.u = Object.fromEntries(["u_layer", "u_cuts", "u_zoom", "u_soft", "u_invert", "u_smooth", "u_n", "u_diff", "u_base", "u_thr"]
       .map((k) => [k, gl.getUniformLocation(prog, k)]));
     this.maxLayers = gl.getParameter(gl.MAX_ARRAY_TEXTURE_LAYERS);
     new ResizeObserver(() => this.draw()).observe(canvas);
@@ -127,6 +144,9 @@ export class Flipbook {
     gl.uniform1i(this.u.u_invert, s.invert ? 1 : 0);
     gl.uniform1i(this.u.u_smooth, s.smooth ? 1 : 0);
     gl.uniform1i(this.u.u_n, this.n);
+    gl.uniform1i(this.u.u_diff, s.diff ? 1 : 0);
+    gl.uniform1i(this.u.u_base, s.base);
+    gl.uniform1f(this.u.u_thr, s.thr);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   }
 }

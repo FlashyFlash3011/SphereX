@@ -147,6 +147,20 @@
             <button type="button" data-mode="photos" aria-pressed="false">One photo</button>
           </div>
         </fieldset>
+        <fieldset class="setting">
+          <legend class="setting-label">Compare visits</legend>
+          <div class="segmented wide" id="flip-compare">
+            <button type="button" data-compare="off" aria-pressed="true">Off</button>
+            <button type="button" data-compare="first" aria-pressed="false">With the first</button>
+            <button type="button" data-compare="prev" aria-pressed="false">With the previous</button>
+          </div>
+          <span class="setting-help">Shows only what changed between visits: orange got brighter, blue got dimmer.</span>
+        </fieldset>
+        <label class="setting" id="thr-setting" hidden>
+          <span class="setting-label">How sure must a change be <output id="flip-thr-out">5×</output></span>
+          <input type="range" id="flip-thr" min="3" max="10" step="0.5" value="5">
+          <span class="setting-help">5× means the change is five times bigger than the noise in that spot. Random noise almost never does that.</span>
+        </label>
         <label class="setting">
           <span class="setting-label">Time between frames <output id="flip-interval-out">500 ms</output></span>
           <input type="range" id="flip-interval" min="100" max="2000" step="50" value="500">
@@ -190,6 +204,12 @@
       <header class="flip-head">
         <h2 class="flip-title" id="flip-title"></h2>
         <p class="flip-sub" id="flip-sub"></p>
+        <p class="flip-legend" id="flip-legend" hidden>
+          <span><i class="key up"></i>Got brighter</span>
+          <span><i class="key down"></i>Got dimmer</span>
+          <span><i class="key ring"></i>Clear change</span>
+          <span><i class="key none"></i>No data</span>
+        </p>
       </header>
       <div class="flip-view" id="flip-view">
         <div class="flip-frame" id="flip-frame">

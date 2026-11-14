@@ -283,3 +283,34 @@ def test_chosen_detector_is_built_first():
 
 def test_certificate_checks_stay_on():
     assert net._TLS.verify_mode == __import__("ssl").CERT_REQUIRED and net._TLS.check_hostname
+
+
+def test_new_search_replaces_the_visitors_unfinished_one(monkeypatch):
+    from types import SimpleNamespace
+    from server import main
+    monkeypatch.setattr(main, "_run", lambda s: None)  # don't actually build
+    monkeypatch.setattr(stack.Stack, "load", classmethod(lambda cls, root, sid: None))
+    monkeypatch.setattr(stack, "start", lambda ra, dec, n, known=None, first=None: stack.Stack(ra, dec, n, fake_exposures(4)))
+    main._stacks.clear()
+    main._building.clear()
+    main._searches.clear()
+    me = SimpleNamespace(headers={}, client=SimpleNamespace(host="1.2.3.4"))
+    a = main.create_stack(me, ra=10.0, dec=20.0, size=64, first=0)
+    first = main._stacks[a["id"]]
+    b = main.create_stack(me, ra=11.0, dec=21.0, size=64, first=0)
+    assert first.cancelled and a["id"] not in main._stacks and a["id"] not in main._building
+    assert main._building == {b["id"]: "1.2.3.4"}
+    other = SimpleNamespace(headers={}, client=SimpleNamespace(host="5.6.7.8"))
+    main.create_stack(other, ra=12.0, dec=22.0, size=64, first=0)
+    assert not main._stacks[b["id"]].cancelled  # someone else's search doesn't cancel mine
+    main._stacks.clear()
+    main._building.clear()
+
+
+def test_cancelled_stack_stops_fetching(monkeypatch):
+    calls = []
+    monkeypatch.setattr(cutout, "read_meta", lambda key, ra, dec: calls.append(key))
+    s = stack.Stack(10.0, 20.0, 32, fake_exposures(6))
+    s.cancel()
+    s.build()
+    assert calls == [] and s.done

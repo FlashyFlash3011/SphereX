@@ -86,7 +86,7 @@ def _get(sid: str) -> stack.Stack:
 def _run(s: stack.Stack) -> None:
     try:
         s.build()
-        if s.frames:
+        if s.frames and not s.cancelled:
             s.save(CACHE)
     finally:
         with _lock:
@@ -209,8 +209,12 @@ def create_stack(request: Request, ra: float, dec: float, size: int = 64, first:
         if s is not None:
             _remember(s)
             return {**s.summary(), "cached": s.done}
-        if who in _building.values():
-            raise HTTPException(429, "One search at a time, please. Wait for the current one to finish.")
+        # A new search from the same visitor replaces their unfinished one, instead of being refused.
+        for old_id in [k for k, v in _building.items() if v == who]:
+            old = _stacks.pop(old_id, None)
+            if old is not None:
+                old.cancel()
+            _building.pop(old_id, None)
         if len(_building) >= MAX_BUILDING:
             raise HTTPException(429, "The server is busy with other searches. Try again in a minute.")
         _building[sid] = who

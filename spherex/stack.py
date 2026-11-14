@@ -55,7 +55,12 @@ class Stack:
         self.missing: list[dict] = []
         self.done = False
         self.first_det = first_det
+        self.cancelled = False
         self._lock = threading.Lock()
+
+    def cancel(self) -> None:
+        """Stop building: the visitor moved on to another search."""
+        self.cancelled = True
 
     # ---- what the web page asks for -------------------------------------------------
     def summary(self) -> dict:
@@ -81,6 +86,8 @@ class Stack:
 
     # ---- building -------------------------------------------------------------------
     def _one(self, i: int) -> None:
+        if self.cancelled:
+            return
         e = self.exposures[i]
         try:
             meta = cutout.read_meta(e.key, self.ra, self.dec)
@@ -147,6 +154,7 @@ class Stack:
         self.missing = doc.get("missing", [])
         self.done = True
         self.first_det = None
+        self.cancelled = False
         self._lock = threading.Lock()
         return self
 

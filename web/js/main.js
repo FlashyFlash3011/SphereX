@@ -362,8 +362,12 @@ $("view-flipbook").addEventListener("click", () => showSubview("flipbook"));
 
 function showView(view) {
   const res = view === "results";
-  if (!res) { document.body.classList.remove("flip-mode"); flip.pause(); }
-  else if ($("view-flipbook").getAttribute("aria-pressed") === "true") document.body.classList.add("flip-mode");
+  const flipChosen = $("view-flipbook").getAttribute("aria-pressed") === "true";
+  // Everything that belongs to Results must be hidden on the Sky tab, including the flipbook picture.
+  document.body.classList.toggle("flip-mode", res && flipChosen);
+  $("flip-stage").hidden = !(res && flipChosen);
+  $("flip-settings").hidden = !(res && flipChosen);
+  if (!res) flip.pause();
   document.body.classList.toggle("results-mode", res);
   $("results").hidden = !res;
   $("legend").hidden = !res;

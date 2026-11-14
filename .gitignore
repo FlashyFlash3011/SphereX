@@ -1,0 +1,27 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Node / tooling
+node_modules/
+.browsers/
+screenshots/
+
+# Downloaded / intermediate data (rebuild with the pipeline; never commit raw FITS)
+data/cache/
+*.fits
+*.fits.gz
+
+# Secrets (there should be none; this is a safety net)
+.env
+.env.*
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/

@@ -1,6 +1,7 @@
 // Main screen: the interactive sky (Aladin Lite) with the search panel on top.
 import A from "../vendor/aladin-lite-3.8.2/aladin.js";
 import { angleText, decText, degText, raText, wavelengthColour } from "./format.js";
+import { Results } from "./results.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -26,6 +27,8 @@ let markers = null;
 let outline = null;
 let chosen = null;      // { ra, dec, name }
 let size = 64;
+let results = null;
+let fromClickText = null;
 
 // ---- the sky ------------------------------------------------------------------------
 async function startSky() {
@@ -64,6 +67,7 @@ async function startSky() {
   spherexLayer = aladin.getBaseImageLayer();
   markers = A.catalog({ name: "Search position", shape: "cross", color: "#FFB547", sourceSize: 22 });
   outline = A.graphicOverlay({ color: "#FFB547", lineWidth: 1.5 });
+  results = new Results(A, aladin);
   aladin.addCatalog(markers);
   aladin.addOverlay(outline);
 
@@ -72,7 +76,7 @@ async function startSky() {
     $("cursor").textContent = p ? `${raText(p.ra)}  ${decText(p.dec)}   (${degText(p.ra, p.dec)})` : "Move over the sky";
   });
   aladin.on("click", (e) => {
-    if (e && e.isDragging) return;
+    if ((e && e.isDragging) || document.body.classList.contains("results-mode")) return;
     const p = skyPoint(e);
     if (p) choose(p.ra, p.dec, null, true);
   });
@@ -183,7 +187,10 @@ function drawChoice() {
 
 function choose(ra, dec, name, fromClick) {
   chosen = { ra, dec, name };
-  if (fromClick) $("q").value = `${ra.toFixed(4)} ${dec >= 0 ? "+" : ""}${dec.toFixed(4)}`;
+  if (fromClick) {
+    $("q").value = `${ra.toFixed(4)} ${dec >= 0 ? "+" : ""}${dec.toFixed(4)}`;
+    fromClickText = $("q").value;
+  }
   echo(`${name ? name + ": " : ""}${raText(ra)} ${decText(dec)}  (${degText(ra, dec)})`, "ok");
   drawChoice();
 }
@@ -276,6 +283,26 @@ async function resolve(text) {
   return body;
 }
 
+async function getJson(url) {
+  let resp;
+  try {
+    resp = await fetch(url);
+  } catch {
+    throw new Error("Can't reach the SphereX server. Check your connection and try again.");
+  }
+  const body = await resp.json().catch(() => ({}));
+  if (!resp.ok) throw new Error(typeof body.detail === "string" ? body.detail : "That didn't work. Try again.");
+  return body;
+}
+
+function filters() {
+  const dets = [...$("detectors").querySelectorAll("input")].filter((b) => b.checked).map((b) => b.value);
+  const q = new URLSearchParams({ ra: chosen.ra.toFixed(6), dec: chosen.dec.toFixed(6), dets: dets.join(",") });
+  if ($("when-from").value) q.set("from", $("when-from").value);
+  if ($("when-to").value) q.set("to", $("when-to").value);
+  return { q, dets };
+}
+
 async function search() {
   const text = $("q").value.trim().slice(0, 64);
   const note = $("search-note");
@@ -284,15 +311,16 @@ async function search() {
   $("search-go").disabled = true;
   note.textContent = "Looking up…";
   try {
-    if (text) {
+    if (text && !(chosen && fromClickText === text)) {
       const place = await resolve(text);
       choose(place.ra, place.dec, place.name, false);
     }
-    if (aladin) {
-      aladin.animateToRaDec(chosen.ra, chosen.dec, 1.5);
-      aladin.zoomToFoV(Math.max(patchDegrees() * 6, 0.3), 1.5);
-    }
-    note.textContent = "Position found. The results view comes in the next build step.";
+    const { q, dets } = filters();
+    if (!dets.length) throw new Error("Choose at least one detector under Colours.");
+    note.textContent = "Asking NASA's archive for every photo of this spot…";
+    const data = await getJson(`/api/search?${q}`);
+    note.textContent = "";
+    openResults(data);
   } catch (err) {
     note.textContent = err.message;
     note.classList.add("bad");
@@ -300,6 +328,30 @@ async function search() {
     $("search-go").disabled = false;
   }
 }
+
+function openResults(data) {
+  results.show(data, chosen);
+  $("tab-results").disabled = false;
+  $("tab-results").removeAttribute("title");
+  showView("results");
+  if (aladin) {
+    aladin.animateToRaDec(chosen.ra, chosen.dec, 1.2);
+    aladin.zoomToFoV(14, 1.2);   // the photos are 3.5° wide and scattered around the spot
+  }
+}
+
+function showView(view) {
+  const res = view === "results";
+  document.body.classList.toggle("results-mode", res);
+  $("results").hidden = !res;
+  $("legend").hidden = !res;
+  $("tab-sky").toggleAttribute("aria-current", !res);
+  $("tab-results").toggleAttribute("aria-current", res);
+  if (res) $("tab-results").setAttribute("aria-current", "page"); else $("tab-sky").setAttribute("aria-current", "page");
+}
+
+$("tab-sky").addEventListener("click", () => showView("sky"));
+$("tab-results").addEventListener("click", () => { if (!$("tab-results").disabled) showView("results"); });
 
 $("search").addEventListener("submit", (e) => { e.preventDefault(); search(); });
 

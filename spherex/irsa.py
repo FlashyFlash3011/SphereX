@@ -86,3 +86,19 @@ def search(ra: float, dec: float) -> list[Exposure]:
         for e in parse_sia_csv(t):
             found[(e.obs_id, e.det)] = e
     return sorted(found.values(), key=lambda e: (e.t_min, e.det))
+
+
+def footprint_centre(points: tuple[tuple[float, float], ...]) -> tuple[float, float]:
+    """Centre of a footprint polygon, averaging on the sphere (safe across RA = 0/360)."""
+    import math
+    if not points:
+        return (0.0, 0.0)
+    x = y = z = 0.0
+    for ra, dec in points:
+        r, d = math.radians(ra), math.radians(dec)
+        x += math.cos(d) * math.cos(r)
+        y += math.cos(d) * math.sin(r)
+        z += math.sin(d)
+    ra = math.degrees(math.atan2(y, x)) % 360.0
+    dec = math.degrees(math.atan2(z, math.hypot(x, y)))
+    return (round(ra, 5), round(dec, 5))

@@ -15,7 +15,7 @@ from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from spherex import cutout, net, positions, stack
+from spherex import channels, cutout, irsa, net, positions, stack
 from spherex.net import FetchError
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -113,6 +113,75 @@ def resolve(name: str = Query(max_length=64)):
         return {"name": name.strip(), "ra": round(found[0], 6), "dec": round(found[1], 6), "kind": "named"}
     ra, dec = positions.position_at(known, _mjd_now())
     return {"name": known.name, "slug": known.slug, "ra": round(ra, 6), "dec": round(dec, 6), "kind": known.kind}
+
+
+_searches: "OrderedDict[tuple, list]" = OrderedDict()  # recent archive searches, newest last
+DETECTOR_UM = {1: (0.75, 1.09), 2: (1.10, 1.62), 3: (1.63, 2.41), 4: (2.42, 3.82), 5: (3.83, 4.41), 6: (4.42, 5.00)}
+
+
+def _parse_date(text: str | None, field: str) -> float | None:
+    """'YYYY-MM-DD' → MJD at 00:00 UTC, or None."""
+    if not text:
+        return None
+    try:
+        d = datetime.strptime(text, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    except ValueError:
+        raise HTTPException(422, f"The {field} date should look like 2025-09-01.")
+    return (d - datetime(1858, 11, 17, tzinfo=timezone.utc)).total_seconds() / 86400
+
+
+@app.get("/api/search")
+def search(ra: float, dec: float, dets: str = Query("1,2,3,4,5,6", max_length=11),
+           date_from: str | None = Query(None, alias="from", max_length=10),
+           date_to: str | None = Query(None, alias="to", max_length=10)):
+    """Every SPHEREx photo covering a position: outline, date, detector, visit. Fast (one archive query)."""
+    try:
+        ra, dec = positions.validate(ra, dec)
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+    try:
+        wanted = {int(d) for d in dets.split(",") if d}
+    except ValueError:
+        raise HTTPException(422, "Detectors should be numbers from 1 to 6.")
+    if not wanted or not wanted <= set(DETECTOR_UM):
+        raise HTTPException(422, "Choose at least one detector, from 1 to 6.")
+    lo, hi = _parse_date(date_from, "start"), _parse_date(date_to, "end")
+    if hi is not None:
+        hi += 1.0  # include the whole end day
+    key = (round(ra, 4), round(dec, 4))
+    with _lock:
+        found = _searches.get(key)
+    if found is None:
+        try:
+            found = irsa.search(ra, dec)
+        except FetchError:
+            raise HTTPException(502, "NASA's archive didn't answer. Try again in a moment.")
+        with _lock:
+            _searches[key] = found
+            while len(_searches) > 64:
+                _searches.popitem(last=False)
+    chosen = [e for e in found if e.det in wanted and (lo is None or e.t_min >= lo) and (hi is None or e.t_min < hi)]
+    visit = channels.assign_passes([e.t_min for e in found])  # visits from all photos, so numbering is stable
+    index = {id(e): i for i, e in enumerate(found)}
+    visits: dict[int, list[float]] = {}
+    photos = []
+    for e in chosen:
+        v = visit[index[id(e)]]
+        visits.setdefault(v, []).append(e.t_min)
+        photos.append({
+            "obs_id": e.obs_id, "det": e.det, "um": DETECTOR_UM[e.det],
+            "release": "DR1" if e.collection.endswith("dr1") else "QR3",
+            "mjd": round(e.t_min, 5), "utc": stack.mjd_to_utc(e.t_min), "visit": v,
+            "centre": irsa.footprint_centre(e.footprint),
+            "outline": [[round(a, 5), round(b, 5)] for a, b in e.footprint],
+            "url": e.access_url,
+        })
+    return {
+        "ra": ra, "dec": dec, "total_all": len(found), "total": len(photos),
+        "visits": [{"visit": v, "start": stack.mjd_to_utc(min(t)), "end": stack.mjd_to_utc(max(t)), "n": len(t)}
+                   for v, t in sorted(visits.items())],
+        "photos": photos,
+    }
 
 
 @app.post("/api/stacks")

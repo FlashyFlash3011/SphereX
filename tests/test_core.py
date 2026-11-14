@@ -235,3 +235,39 @@ def test_sesame_answers_are_parsed_safely():
     assert positions.sesame_url("M 42").endswith("SNV?M%2042")
     with pytest.raises(ValueError):
         positions.sesame_url("<script>")
+
+
+def test_footprint_centre_handles_ra_wrap():
+    assert irsa.footprint_centre(((359.0, 1.0), (1.0, 1.0), (1.0, -1.0), (359.0, -1.0))) == pytest.approx((0.0, 0.0), abs=1e-4) \
+        or irsa.footprint_centre(((359.0, 1.0), (1.0, 1.0), (1.0, -1.0), (359.0, -1.0)))[0] == pytest.approx(360.0, abs=1e-4)
+    ra, dec = irsa.footprint_centre(((10.0, 20.0), (12.0, 20.0), (12.0, 22.0), (10.0, 22.0)))
+    assert ra == pytest.approx(11.0, abs=0.05) and dec == pytest.approx(21.0, abs=0.05)
+
+
+def test_search_endpoint_validates_and_filters(monkeypatch):
+    from fastapi import HTTPException
+    from server import main
+    called = []
+
+    def fake_search(ra, dec):
+        called.append((ra, dec))
+        return fake_exposures(6)
+
+    monkeypatch.setattr(irsa, "search", fake_search)
+    main._searches.clear()
+
+    def run(ra=10.0, dec=20.0, dets="1,2,3,4,5,6", date_from=None, date_to=None):
+        return main.search(ra=ra, dec=dec, dets=dets, date_from=date_from, date_to=date_to)
+
+    for bad in [dict(ra=400.0), dict(dets="7"), dict(dets=""), dict(date_from="yesterday")]:
+        with pytest.raises(HTTPException) as e:
+            run(**bad)
+        assert e.value.status_code == 422
+    assert called == []  # bad input never reaches the archive
+    r = run()
+    assert r["total"] == 6 and [v["visit"] for v in r["visits"]] == [0, 1]
+    assert {p["release"] for p in r["photos"]} == {"DR1"} and len(r["photos"][0]["outline"]) == 0
+    r2 = run(dets="1,2")
+    assert {p["det"] for p in r2["photos"]} == {1, 2} and len(called) == 1  # second call served from memory
+    r3 = run(date_to="2025-01-01")
+    assert r3["total"] == 0 and r3["total_all"] == 6

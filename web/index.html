@@ -102,6 +102,44 @@
       </form>
     </section>
 
+    <section class="results" id="results" aria-labelledby="results-title" hidden>
+      <header class="results-head">
+        <div>
+          <h1 id="results-title" class="results-title"></h1>
+          <p class="results-where" id="results-where"></p>
+        </div>
+        <div class="segmented" role="tablist" aria-label="Results view">
+          <button type="button" role="tab" id="view-coverage" aria-selected="true" aria-pressed="true">Coverage</button>
+          <button type="button" role="tab" id="view-flipbook" aria-selected="false" aria-pressed="false" disabled title="Coming in the next step">Flipbook</button>
+        </div>
+      </header>
+      <p class="results-summary" id="results-summary"></p>
+      <ul class="visits" id="visits" aria-label="Visits: click to show or hide"></ul>
+      <div class="table-wrap" id="table-wrap">
+        <table class="photos">
+          <thead>
+            <tr>
+              <th scope="col"><button type="button" data-sort="mjd" aria-sort="ascending">Date (UTC)</button></th>
+              <th scope="col"><button type="button" data-sort="visit">Visit</button></th>
+              <th scope="col"><button type="button" data-sort="det">Detector</button></th>
+              <th scope="col">Colours</th>
+              <th scope="col"><button type="button" data-sort="release">Release</button></th>
+              <th scope="col"><span class="visually-hidden">Original file</span></th>
+            </tr>
+          </thead>
+          <tbody id="photo-rows"></tbody>
+        </table>
+      </div>
+      <p class="results-empty" id="results-empty" hidden></p>
+    </section>
+
+    <aside class="panel legend" id="legend" hidden aria-label="Layers">
+      <h2>On the sky</h2>
+      <label class="toggle"><input type="checkbox" id="show-outlines" checked> Photo outlines</label>
+      <label class="toggle"><input type="checkbox" id="show-centres"> Photo centres</label>
+      <p class="legend-note">Colour shows the visit. Click a centre to find the photo in the list.</p>
+    </aside>
+
     <div class="zoom" role="group" aria-label="Zoom">
       <button type="button" class="icon-button" id="zoom-in" aria-label="Zoom in">
         <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg>

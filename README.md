@@ -15,7 +15,11 @@ sees a given star in a different colour, so a naive flipbook flickers even when 
 changed. SphereX only compares images taken in the **same colour**, then highlights
 changes that are larger than the measured noise and shows how confident each one is.
 
-How it is built (planned):
+What works today: search any position or name; every SPHEREx photo of it on the sky and in a list;
+a flipbook of the visits in any colour band; a change map comparing visits (brighter, dimmer, moved);
+and a spectrum ("colour fingerprint") of any spot, with water, methane, CO₂ and CO bands marked.
+
+How it is built:
 - A **Python pipeline** finds every SPHEREx exposure of a target in NASA's IRSA archive,
   downloads only a small cut-out of each, masks bad pixels, aligns everything north-up
   and writes compact files plus a `manifest.json`.
@@ -60,10 +64,6 @@ Libraries and assets:
 - [Public Sans](https://public-sans.digital.gov) typeface (SIL Open Font License), via Google Fonts.
 
 This project is not affiliated with or endorsed by NASA.
-
-## Team
-
-NASA Space Apps 2026, Tel Aviv. Team members and roles will be added here.
 
 ## Licence
 

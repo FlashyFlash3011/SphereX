@@ -4,8 +4,12 @@ import A from "../vendor/aladin-lite-3.8.2/aladin.js";
 import { angleText, decText, degText, raText, wavelengthColour } from "./format.js";
 import { Results } from "./results.js";
 import { Flip } from "./flip.js";
+import { Spectrum } from "./spectrum.js";
 
 const flip = new Flip();
+const spectrum = new Spectrum(flip);
+flip.onUpdate = () => { if (spectrum.visible()) spectrum.update(); };
+flip.onSpot = () => spectrum.update();
 
 const $ = (id) => document.getElementById(id);
 
@@ -346,27 +350,37 @@ function openResults(data) {
   }
 }
 
+let subview = "coverage";
 function showSubview(which) {
-  const fb = which === "flipbook";
-  document.body.classList.toggle("flip-mode", fb && document.body.classList.contains("results-mode"));
+  subview = which;
+  const inResults = document.body.classList.contains("results-mode");
+  const fb = which === "flipbook", sp = which === "spectrum";
+  document.body.classList.toggle("flip-mode", fb && inResults);
+  document.body.classList.toggle("spec-mode", sp && inResults);
   $("flip-stage").hidden = !fb;
   $("flip-settings").hidden = !fb;
-  for (const [id, on] of [["view-coverage", !fb], ["view-flipbook", fb]]) {
+  $("spec-stage").hidden = !sp;
+  $("spec-side").hidden = !sp;
+  for (const [id, on] of [["view-coverage", which === "coverage"], ["view-flipbook", fb], ["view-spectrum", sp]]) {
     $(id).setAttribute("aria-pressed", String(on));
     $(id).setAttribute("aria-selected", String(on));
   }
   if (!fb) flip.pause();
+  if (sp) spectrum.update();
 }
 $("view-coverage").addEventListener("click", () => showSubview("coverage"));
 $("view-flipbook").addEventListener("click", () => showSubview("flipbook"));
+$("view-spectrum").addEventListener("click", () => showSubview("spectrum"));
 
 function showView(view) {
   const res = view === "results";
-  const flipChosen = $("view-flipbook").getAttribute("aria-pressed") === "true";
-  // Everything that belongs to Results must be hidden on the Sky tab, including the flipbook picture.
-  document.body.classList.toggle("flip-mode", res && flipChosen);
-  $("flip-stage").hidden = !(res && flipChosen);
-  $("flip-settings").hidden = !(res && flipChosen);
+  // Everything that belongs to Results must be hidden on the Sky tab, including the flipbook and the chart.
+  document.body.classList.toggle("flip-mode", res && subview === "flipbook");
+  document.body.classList.toggle("spec-mode", res && subview === "spectrum");
+  $("flip-stage").hidden = !(res && subview === "flipbook");
+  $("flip-settings").hidden = !(res && subview === "flipbook");
+  $("spec-stage").hidden = !(res && subview === "spectrum");
+  $("spec-side").hidden = !(res && subview === "spectrum");
   if (!res) flip.pause();
   document.body.classList.toggle("results-mode", res);
   $("results").hidden = !res;

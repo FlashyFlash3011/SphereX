@@ -111,6 +111,7 @@
         <div class="segmented" role="tablist" aria-label="Results view">
           <button type="button" role="tab" id="view-coverage" aria-selected="true" aria-pressed="true">Coverage</button>
           <button type="button" role="tab" id="view-flipbook" aria-selected="false" aria-pressed="false">Flipbook</button>
+          <button type="button" role="tab" id="view-spectrum" aria-selected="false" aria-pressed="false">Spectrum</button>
         </div>
       </header>
       <div id="coverage-panel" class="coverage-panel">
@@ -198,6 +199,30 @@
           <span class="setting-help">Larger patches show more sky but take longer to load.</span>
         </fieldset>
       </form>
+      <div class="spec-side" id="spec-side" hidden>
+        <p class="spec-spot" id="spec-spot"></p>
+        <p class="setting-help">Click anywhere on the Flipbook image to measure another spot.</p>
+        <table class="bands">
+          <caption>What the shaded bands mean</caption>
+          <thead><tr><th scope="col">Molecule</th><th scope="col">Where</th><th scope="col">A dip means</th></tr></thead>
+          <tbody id="band-rows"></tbody>
+        </table>
+        <button type="button" class="primary" id="spec-csv">Download the data (CSV)</button>
+        <p class="setting-help">For research-grade measurements, use IRSA's Spectrophotometry Tool.</p>
+      </div>
+    </section>
+
+    <section class="spec-stage" id="spec-stage" hidden aria-label="Spectrum">
+      <header class="flip-head">
+        <h2 class="flip-title spec-title" id="spec-title">Colour fingerprint</h2>
+        <p class="flip-sub" id="spec-sub"></p>
+        <p class="flip-legend" id="spec-legend"></p>
+      </header>
+      <div class="spec-view" id="spec-view">
+        <canvas id="spec-canvas" aria-label="Brightness of the chosen spot at each SPHEREx colour"></canvas>
+        <p class="spec-tip" id="spec-tip" hidden></p>
+        <p class="flip-empty" id="spec-empty" hidden></p>
+      </div>
     </section>
 
     <section class="flip-stage" id="flip-stage" hidden aria-label="Flipbook">

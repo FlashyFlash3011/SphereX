@@ -182,7 +182,11 @@ export class Flip {
     this.thr = 5;
     this.size = 64;
     this.place = null;
+    this.spot = null;          // the spot measured by the Spectrum tab (image pixels); null = centre
+    this.onUpdate = null;      // called after the frames are rebuilt
+    this.onSpot = null;        // called when the visitor clicks the image to choose a spot
     this.bindSettings();
+    this.overlay.addEventListener("click", (e) => this.pickSpot(e));
     new ResizeObserver(() => this.drawMarker()).observe(this.overlay);
   }
 
@@ -192,6 +196,7 @@ export class Flip {
     this.size = size;
     for (const b of $("flip-size").querySelectorAll("button")) b.setAttribute("aria-pressed", String(Number(b.dataset.size) === size));
     this.pause();
+    this.spot = null;
     const run = (this.run = { id: null, n: size, exposures: [], meta: new Map(), px: new Map(), missing: [], done: false });
     this.views = [];
     this.at = 0;
@@ -353,6 +358,7 @@ export class Flip {
     $("flip-legend").hidden = !diff;
     this.updateCuts();
     this.render();
+    if (this.onUpdate) this.onUpdate();
     if (!this.timer && !reducedMotion && views.length >= 2 && this._autoplay !== false) { this._autoplay = false; this.play(); }
   }
 
@@ -435,6 +441,13 @@ export class Flip {
     ctx.clearRect(0, 0, w, h);
     const view = this.views[this.at];
     if (view && view.changes && this.run) this.drawChanges(ctx, w, h, view.changes, view.found);
+    if (this.spot && this.run) {   // the spot chosen for the Spectrum tab: a small square
+      const n = this.run.n, zoom = this.book.state.zoom, side = Math.max(10, (w / n) * zoom * 5);
+      const sx = (0.5 + ((this.spot.x + 0.5) / n - 0.5) * zoom) * w, sy = (0.5 + ((1 - (this.spot.y + 0.5) / n) - 0.5) * zoom) * h;
+      ctx.strokeStyle = "#DCE3EC";
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(sx - side / 2, sy - side / 2, side, side);
+    }
     if (!$("flip-marker").checked || !this.views.length) return;
     // The search position is the centre of the patch; draw an open crosshair so the star stays visible.
     const zoom = this.book.state.zoom, px = (w / (this.run ? this.run.n : 64)) * zoom;
@@ -479,6 +492,30 @@ export class Flip {
       ctx.lineTo(bx - 8 * Math.cos(ang + 0.45), by - 8 * Math.sin(ang + 0.45));
       ctx.closePath(); ctx.fill();
     }
+  }
+
+  // Clicking the image chooses the spot the Spectrum tab measures (undoing zoom and the north-up flip).
+  pickSpot(e) {
+    if (!this.run || !this.run.n || !this.views.length) return;
+    const r = this.overlay.getBoundingClientRect(), n = this.run.n, zoom = this.book.state.zoom;
+    const u = 0.5 + ((e.clientX - r.left) / r.width - 0.5) / zoom, v = 0.5 + ((e.clientY - r.top) / r.height - 0.5) / zoom;
+    if (u < 0 || u > 1 || v < 0 || v > 1) return;
+    let x = Math.round(u * n - 0.5), y = Math.round((1 - v) * n - 0.5);
+    // Snap to the brightest pixel within 2 pixels, so clicking near a star measures the star.
+    const view = this.views[this.at], img = view && (view.base || view.data);
+    if (img) {
+      let best = -Infinity, bx = x, by = y;
+      for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
+        const xx = x + dx, yy = y + dy;
+        if (xx < 0 || yy < 0 || xx >= n || yy >= n || dx * dx + dy * dy > 4) continue;
+        const val = img[yy * n + xx];
+        if (val > -1e29 && val > best) { best = val; bx = xx; by = yy; }
+      }
+      x = bx; y = by;
+    }
+    this.spot = { x, y };
+    this.drawMarker();
+    if (this.onSpot) this.onSpot();
   }
 
   go(k) {

@@ -47,7 +47,17 @@ Data and services (to be completed as each one is actually used):
   Aeronautics and Space Administration."
 - Inspiration: WiseView / Backyard Worlds (named in the challenge resources).
 
-Libraries, each with its licence, will be listed here when added.
+- **SPHEREx DR1 all-sky map** (DOI 10.26131/IRSA679), shown as the interactive sky, from IRSA.
+- **2MASS** near-infrared colour map (via IRSA) and **Digitized Sky Survey** colour map (via ESA ESASky),
+  as optional backgrounds.
+- **Sesame** name resolver (CDS Strasbourg, CfA mirror) for looking up object names.
+
+Libraries and assets:
+- [Aladin Lite](https://github.com/cds-astro/aladin-lite) 3.8.2, CDS Strasbourg, LGPL-3.0-or-later
+  (unmodified copy in `web/vendor/`, licence included).
+- [Astropy](https://www.astropy.org) 7.2.0 (BSD-3), NumPy (BSD-3), SciPy (BSD-3), FastAPI (MIT),
+  Uvicorn (BSD-3), Pillow (MIT-CMU).
+- [Public Sans](https://public-sans.digital.gov) typeface (SIL Open Font License), via Google Fonts.
 
 This project is not affiliated with or endorsed by NASA.
 

@@ -15,6 +15,7 @@ from urllib.parse import urlsplit
 ALLOWED_HOSTS = frozenset({
     "irsa.ipac.caltech.edu",
     "nasa-irsa-spherex.s3.us-east-1.amazonaws.com",
+    "vizier.cfa.harvard.edu",  # Sesame name resolver
 })
 S3_BASE = "https://nasa-irsa-spherex.s3.us-east-1.amazonaws.com/"
 TIMEOUT_S = 30

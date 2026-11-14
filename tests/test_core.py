@@ -225,3 +225,13 @@ def test_too_many_exposures_are_thinned_evenly():
     s = stack.Stack(10.0, 20.0, 32, fake_exposures(stack.MAX_FRAMES + 300))
     assert len(s.exposures) == stack.MAX_FRAMES and s.truncated == 300
     assert s.exposures[0].obs_id == "obs0" and s.exposures[-1].obs_id == f"obs{stack.MAX_FRAMES + 299}"
+
+
+def test_sesame_answers_are_parsed_safely():
+    xml = "<Sesame><Resolver><jradeg>83.82208</jradeg><jdedeg>-5.39111</jdedeg></Resolver></Sesame>"
+    assert positions.parse_sesame(xml) == pytest.approx((83.82208, -5.39111))
+    assert positions.parse_sesame("<Sesame><INFO>nothing found</INFO></Sesame>") is None
+    assert positions.parse_sesame("<jradeg>999</jradeg><jdedeg>0</jdedeg>") is None
+    assert positions.sesame_url("M 42").endswith("SNV?M%2042")
+    with pytest.raises(ValueError):
+        positions.sesame_url("<script>")

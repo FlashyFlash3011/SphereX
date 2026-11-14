@@ -95,6 +95,29 @@ def position_at(known: Known, mjd: float) -> tuple[float, float]:
     return ra % 360.0, dec
 
 
+_SESAME = "https://vizier.cfa.harvard.edu/viz-bin/nph-sesame/-ox/SNV?"
+_RA_TAG = re.compile(r"<jradeg>\s*([-+0-9.eE]+)\s*</jradeg>")
+_DEC_TAG = re.compile(r"<jdedeg>\s*([-+0-9.eE]+)\s*</jdedeg>")
+
+
+def sesame_url(name: str) -> str:
+    if not valid_name(name):
+        raise ValueError("not a valid name")
+    from urllib.parse import quote
+    return _SESAME + quote(name.strip())
+
+
+def parse_sesame(xml: str) -> tuple[float, float] | None:
+    """First position in a Sesame XML answer, or None if the name wasn't found."""
+    ra, dec = _RA_TAG.search(xml), _DEC_TAG.search(xml)
+    if not ra or not dec:
+        return None
+    try:
+        return validate(float(ra.group(1)), float(dec.group(1)))
+    except ValueError:
+        return None
+
+
 def find_known(name: str) -> Known | None:
     key = " ".join(name.lower().replace("’", "'").split())
     for k in KNOWN.values():

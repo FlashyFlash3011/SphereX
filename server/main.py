@@ -15,7 +15,7 @@ from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from spherex import cutout, positions, stack
+from spherex import cutout, net, positions, stack
 from spherex.net import FetchError
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -103,7 +103,14 @@ def resolve(name: str = Query(max_length=64)):
         raise HTTPException(422, "That position isn't on the sky. RA goes from 0 to 360, Dec from -90 to +90.")
     known = positions.find_known(name)
     if known is None:
-        raise HTTPException(404, "We don't know that name yet. Try coordinates, like 269.45 4.77.")
+        try:
+            xml = net.fetch(positions.sesame_url(name), max_bytes=200_000).decode("utf-8", "replace")
+        except (FetchError, ValueError):
+            raise HTTPException(502, "The name lookup service didn't answer. Try coordinates, like 269.45 4.77.")
+        found = positions.parse_sesame(xml)
+        if found is None:
+            raise HTTPException(404, "We couldn't find that name. Check the spelling, or try coordinates.")
+        return {"name": name.strip(), "ra": round(found[0], 6), "dec": round(found[1], 6), "kind": "named"}
     ra, dec = positions.position_at(known, _mjd_now())
     return {"name": known.name, "slug": known.slug, "ra": round(ra, 6), "dec": round(dec, 6), "kind": known.kind}
 

@@ -1,27 +1,35 @@
 /* Design tokens. See web/DESIGN.md for what each one is for. */
 :root {
-  --darkroom: #0E0D0B; /* unslop-ignore: chosen darkroom base, see DESIGN.md */
-  --bench: #1A1815;
-  --rule: #2E2A24;
-  --paper: #ECE6DA;
-  --dust: #9C9486;
-  --safelight: #F0A04B;
+  --space: #05070B; /* unslop-ignore: the night sky backdrop, chosen on purpose */
+  --panel: rgba(16, 22, 34, .80);
+  --panel-solid: #101622;
+  --line: rgba(190, 210, 240, .16);
+  --line-strong: rgba(190, 210, 240, .32);
+  --text: #F2F5FA;
+  --text-2: rgba(242, 245, 250, .70);
+  --text-3: rgba(242, 245, 250, .52);
+  --accent: #8DB7F2;
+  --accent-soft: rgba(141, 183, 242, .16);
+  --target: #FFB547;
 
-  --font: "Archivo", "Helvetica Neue", Arial, sans-serif;
-  --narrow: "wdth" 68;
-  --text-s: 13px;
-  --text-m: 15px;
+  --font: "Public Sans", "Helvetica Neue", Arial, sans-serif;
+  --text-xs: 12px;
+  --text-s: 14px;
+  --text-m: 16px;
   --text-l: 20px;
-  --text-xl: 28px;
-  --text-date: clamp(40px, 5.2vw, 76px);
 
   --gap-1: 4px;
   --gap-2: 8px;
-  --gap-3: 16px;
-  --gap-4: 24px;
-  --gap-5: 40px;
+  --gap-3: 12px;
+  --gap-4: 16px;
+  --gap-5: 24px;
 
-  --corner: 4px;
-  --quick: 120ms cubic-bezier(.2, 0, 0, 1);
-  --bar: 104px; /* height of the timeline bar */
+  --radius-panel: 8px;
+  --radius-control: 6px;
+  --quick: 160ms cubic-bezier(.2, 0, 0, 1);
+  --panel-move: 200ms cubic-bezier(.2, 0, 0, 1);
+
+  --topbar: 52px;
+  --toolbar: 44px;
+  --statusbar: 32px;
 }

@@ -1,53 +1,46 @@
 # SphereX design notes
 
-**What the page is for:** type a place in the sky, watch it change. The first thing a visitor does is
-search; the first thing they see afterwards is the image playing.
+**What the page is for:** explore the infrared sky, pick a place, and see how it changed in NASA SPHEREx
+images. The sky is the main screen; everything else sits at its edges.
 
-**Character: a darkroom blink comparator.** Pluto was found by flipping between two photographic plates.
-SphereX is that instrument for SPHEREx data, so the page borrows from the plate archive: a sharp-cornered
-plate with registration ticks, a logbook entry beside it, a date stamped in narrow numerals.
-
-**Feel reference:** NASA's Eyes on the Earth (the data fills the view, thin controls at the edges, "what"
-and "when" always in the same place). We borrow the feel, not the look.
+**References:** structure from IRSA's SPHEREx Spectral Image Search (sky + search panel, Results with
+Coverage), interaction from the Aladin Lite demo (drag, zoom, globe), feel from NASA's Eyes on the Earth
+(full-screen data, thin translucent panels, fixed places for "what" and "where"). The flipbook follows
+WiseView. Target screenshots: `RESEARCH/docs/research/target-screens/` in the team folder.
 
 ## Colour
-| Name | Value | Used for |
+| Token | Value | Used for |
 |---|---|---|
-| Darkroom | `#0E0D0B` | page |
-| Bench | `#1A1815` | panels, controls |
-| Rule | `#2E2A24` | hairlines, no-data hatching |
-| Paper | `#ECE6DA` | text |
-| Dust | `#9C9486` | secondary text |
-| Safelight | `#F0A04B` | only "this is active": playhead, focus ring, pressed control |
+| `--space` | `#05070B` | page and sky backdrop |
+| `--panel` | `rgba(16, 22, 34, .80)` + blur | floating panels over the sky |
+| `--panel-solid` | `#101622` | bars, fallback when blur is unavailable |
+| `--line` | `rgba(190, 210, 240, .16)` | hairlines, control borders |
+| `--text` | `#F2F5FA` | text |
+| `--text-2` | `rgba(242, 245, 250, .70)` | secondary text |
+| `--accent` | `#8DB7F2` | active tab, focus ring, selected control |
+| `--target` | `#FFB547` | the searched position on the sky |
 
-**All vivid colour belongs to the data.** Every frame is tinted by the wavelength it was taken at, on a
-ramp from 0.75 µm (`#6F7BFF`) through `#35C6C0`, `#B9D650`, `#FFB13D` to 5 µm (`#E8472B`). Timeline
-ticks use the same ramp, so a visitor can see the colour sweep inside each visit. The interface itself
-never uses these colours.
+Wavelength swatches use the infrared ramp (0.75 µm blue → 5 µm red), only next to wavelength values.
 
 ## Type
-Archivo (variable width) only. Width 100 for text; width 68, weight 600, tabular numerals for the date
-and other numbers. Sizes 13 / 15 / 20 / 28, date `clamp(40px, 5.2vw, 76px)`.
+Public Sans (USWDS), weights 400/500/600. Sizes 12 / 14 / 16 / 20. Numbers use tabular figures.
+Sentence case everywhere; no all-caps labels.
 
-## Layout
+## Layout (desktop)
 ```
-desktop                                        phone
-┌──────────────────────────┬───────────────┐   ┌───────────────┐
-│                          │ search        │   │ search        │
-│        plate             │ Observed on   │   │ plate         │
-│     (the image)          │ 15 Aug 2025   │   │               │
-│                          │ colour · det  │   │ 15 Aug 2025   │
-│                          │ status        │   │ colour · det  │
-├──────────────────────────┴───────────────┤   ├───────────────┤
-│ ▶  ◀ ▶   ▍▍▍▍▍▍▍   ▍▍▍▍▍▍▍   ▍▍▍▍▍▍▍    │   │ ▶ ▍▍▍▍ ▍▍▍▍   │
-└──────────────────────────────────────────┘   └───────────────┘
+┌ top bar: SphereX   [Sky] [Results]                                   About ┐
+├ toolbar: Colour 0.753 µm ‹ › [1] /102 ──slider──   Background ▾   Globe | Flat ┤
+│ ┌ search panel ┐                                                     [+]    │
+│ │ Find SPHEREx │              the sky (Aladin)                       [−]    │
+│ │ images       │                    ✛ target                                │
+│ └──────────────┘                                                            │
+└ status: cursor RA/Dec · field of view · data credit                 Aladin ┘
 ```
-Left-aligned text. The plate is square and sharp-cornered; controls have 4 px corners.
+Left-aligned text. Panels: 8 px corners, hairline border, no shadows except a soft one under floating
+panels. Controls: 6 px corners.
 
 ## Motion
-Frames switch instantly (a fade would hide motion). Controls respond in 120 ms. With reduced motion on,
-nothing plays until asked.
+Panel open/close 200 ms ease-out; fly-to uses Aladin's animation; respects reduced motion.
 
 ## Not this
-No glow, gradients on text, purple, card grids, emoji icons, all-caps labels, monospace labels, arrows on
-buttons, or strings of facts joined by dots.
+No glow, gradient text, purple, card grids, emoji icons, all-caps labels, arrows on buttons, NASA logos.

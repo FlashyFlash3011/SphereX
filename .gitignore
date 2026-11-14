@@ -25,3 +25,6 @@ data/cache/
 .DS_Store
 .vscode/
 .idea/
+
+# Server cache
+var/

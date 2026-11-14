@@ -1,5 +1,6 @@
 // The Flipbook tab: SPHEREx cut-outs of the chosen spot, grouped by visit, added up in one colour
 // band, and looped like WiseView. Cut-outs stream in from the server; frames sharpen as they arrive.
+import { API } from "./config.js";
 import { Flipbook, NO_DATA } from "./flipbook.js";
 
 const $ = (id) => document.getElementById(id);
@@ -82,7 +83,7 @@ export class Flip {
     try {
       const q = new URLSearchParams({ ra: place.ra.toFixed(6), dec: place.dec.toFixed(6), size: String(size),
                                       first: String(this.band.kind === "det" ? this.band.det : Math.floor(this.band.ch / 17) + 1) });
-      const s = await getJson(`/api/stacks?${q}`, { method: "POST" });
+      const s = await getJson(`${API}/api/stacks?${q}`, { method: "POST" });
       if (this.run !== run) return;
       run.id = s.id;
       run.exposures = s.exposures;
@@ -98,7 +99,7 @@ export class Flip {
   async follow(run) {
     let after = 0;
     for (;;) {
-      const st = await getJson(`/api/stacks/${run.id}/status?after=${after}`);
+      const st = await getJson(`${API}/api/stacks/${run.id}/status?after=${after}`);
       if (this.run !== run) return;
       after = st.next;
       run.missing = st.missing;
@@ -106,7 +107,7 @@ export class Flip {
       for (let k = 0; k < fresh.length; k += 48) {
         const part = fresh.slice(k, k + 48);
         let resp;
-        try { resp = await fetch(`/api/stacks/${run.id}/frames?i=${part.map((f) => f.i).join(",")}`); } catch { resp = null; }
+        try { resp = await fetch(`${API}/api/stacks/${run.id}/frames?i=${part.map((f) => f.i).join(",")}`); } catch { resp = null; }
         if (this.run !== run) return;
         if (!resp || !resp.ok) continue;
         const buf = await resp.arrayBuffer(), n2 = run.n * run.n;

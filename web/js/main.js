@@ -1,4 +1,5 @@
 // Main screen: the interactive sky (Aladin Lite) with the search panel on top.
+import { API } from "./config.js";
 import A from "../vendor/aladin-lite-3.8.2/aladin.js";
 import { angleText, decText, degText, raText, wavelengthColour } from "./format.js";
 import { Results } from "./results.js";
@@ -277,7 +278,7 @@ $("search-collapse").addEventListener("click", () => {
 async function resolve(text) {
   let resp;
   try {
-    resp = await fetch(`/api/resolve?name=${encodeURIComponent(text)}`);
+    resp = await fetch(`${API}/api/resolve?name=${encodeURIComponent(text)}`);
   } catch {
     throw new Error("Can't reach the SphereX server. Check your connection and try again.");
   }
@@ -320,8 +321,8 @@ async function search() {
     }
     const { q, dets } = filters();
     if (!dets.length) throw new Error("Choose at least one detector under Colours.");
-    note.textContent = "Asking NASA's archive for every photo of this spot…";
-    const data = await getJson(`/api/search?${q}`);
+    note.textContent = "Asking NASA's archive for every photo of this spot… (if the server was asleep, the first search can take about a minute)";
+    const data = await getJson(`${API}/api/search?${q}`);
     note.textContent = "";
     openResults(data);
   } catch (err) {
@@ -381,5 +382,8 @@ $("about-open").addEventListener("click", () => $("about").showModal());
 
 // For debugging in the browser console.
 window.sphereX = { get aladin() { return aladin; }, get layer() { return spherexLayer; } };
+
+// Wake the server as soon as the page opens: the free server sleeps when idle and takes about a minute to start.
+fetch(`${API}/health`).catch(() => {});
 
 startSky().then(loadPlaneWavelengths);

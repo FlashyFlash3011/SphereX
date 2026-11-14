@@ -1,0 +1,10 @@
+.venv
+.git
+.github
+var
+tests
+**/__pycache__
+.pytest_cache
+.ruff_cache
+*.md
+render.yaml

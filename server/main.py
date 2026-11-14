@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
@@ -26,6 +27,12 @@ MAX_FRAMES_PER_REQUEST = 64
 _ID = re.compile(r"^[0-9a-f]{16}$")
 
 app = FastAPI(title="SphereX", docs_url=None, redoc_url=None, openapi_url=None)
+
+# The website on GitHub Pages lives on another address; allow exactly that address to call us.
+_origins = [o.strip() for o in os.environ.get("ALLOWED_ORIGINS", "").split(",") if o.strip()]
+if _origins:
+    app.add_middleware(CORSMiddleware, allow_origins=_origins, allow_methods=["GET", "POST"],
+                       allow_headers=[], allow_credentials=False, max_age=3600)
 _stacks: "OrderedDict[str, stack.Stack]" = OrderedDict()
 _building: dict[str, str] = {}  # stack id → visitor address
 _lock = threading.Lock()
@@ -84,7 +91,7 @@ def _run(s: stack.Stack) -> None:
             _building.pop(s.id, None)
 
 
-@app.get("/healthz")
+@app.get("/health")  # not /healthz: Cloud Run reserves paths ending in "z"
 def healthz():
     return {"ok": True}
 

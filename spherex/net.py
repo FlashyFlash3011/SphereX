@@ -8,10 +8,13 @@ from __future__ import annotations
 import http.client
 import logging
 import random
+import ssl
 import time
 import urllib.error
 import urllib.request
 from urllib.parse import urlsplit
+
+import certifi
 
 ALLOWED_HOSTS = frozenset({
     "irsa.ipac.caltech.edu",
@@ -23,6 +26,11 @@ TIMEOUT_S = 30
 RETRY_WAITS_S = (1.0, 3.0, 9.0)
 USER_AGENT = "SphereX/0.1"
 log = logging.getLogger("spherex.net")
+
+# Verify certificates against Mozilla's current list (certifi). Slim server images ship an older list
+# that lacks the root certificate NASA's archive uses (SSL.com TLS RSA Root CA 2022).
+_TLS = ssl.create_default_context(cafile=certifi.where())
+_OPENER = urllib.request.build_opener(urllib.request.HTTPSHandler(context=_TLS))
 
 
 class FetchError(RuntimeError):
@@ -36,7 +44,7 @@ def _check(url: str) -> None:
 
 
 def fetch(url: str, byte_range: tuple[int, int] | None = None, suffix: int | None = None,
-          max_bytes: int = 8_000_000, _sleep=time.sleep, _open=urllib.request.urlopen) -> bytes:
+          max_bytes: int = 8_000_000, _sleep=time.sleep, _open=_OPENER.open) -> bytes:
     """GET `url` (optionally a byte range, or the last `suffix` bytes). Raises FetchError."""
     _check(url)
     headers = {"User-Agent": USER_AGENT}

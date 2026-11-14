@@ -279,3 +279,7 @@ def test_chosen_detector_is_built_first():
     dets = [s.exposures[i].det for i in order]
     assert dets[:2] == [3, 3] and sorted(order) == list(range(12))
     assert set(dets[2:]) == {1, 2, 4, 5, 6}
+
+
+def test_certificate_checks_stay_on():
+    assert net._TLS.verify_mode == __import__("ssl").CERT_REQUIRED and net._TLS.check_hostname

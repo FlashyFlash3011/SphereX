@@ -200,7 +200,7 @@ export class Flip {
     if (!this.book.ok) { this.empty("This browser can't draw the images (it needs WebGL 2). Try a current Chrome, Firefox or Safari."); return; }
     try {
       const q = new URLSearchParams({ ra: place.ra.toFixed(6), dec: place.dec.toFixed(6), size: String(size),
-                                      first: String(this.band.kind === "det" ? this.band.det : Math.floor(this.band.ch / 17) + 1) });
+                                      first: String(this.band.kind === "all" ? 0 : this.band.kind === "det" ? this.band.det : Math.floor(this.band.ch / 17) + 1) });
       const s = await getJson(`${API}/api/stacks?${q}`, { method: "POST" });
       if (this.run !== run) return;
       run.id = s.id;
@@ -255,6 +255,7 @@ export class Flip {
 
   // ---- building the frames ------------------------------------------------------------
   inBand(f) {
+    if (this.band.kind === "all") return true;
     return this.band.kind === "det" ? f.det === this.band.det : f.channel === this.band.ch;
   }
 
@@ -516,6 +517,7 @@ export class Flip {
     if (sel.dataset.key === key) return;
     sel.dataset.key = key;
     sel.replaceChildren();
+    sel.append(new Option(`All colours, all 6 detectors (${run.exposures.length} photos)`, "all"));
     const g1 = document.createElement("optgroup");
     g1.label = "Whole detector (clearer)";
     for (let d = 1; d <= 6; d++) {
@@ -532,13 +534,13 @@ export class Flip {
       }
       sel.append(g2);
     }
-    sel.value = this.band.kind === "det" ? `det:${this.band.det}` : `ch:${this.band.ch}`;
+    sel.value = this.band.kind === "all" ? "all" : this.band.kind === "det" ? `det:${this.band.det}` : `ch:${this.band.ch}`;
     if (!sel.value && sel.options.length) { sel.selectedIndex = 0; this.readBand(); }
   }
 
   readBand() {
     const [kind, num] = $("flip-band").value.split(":");
-    this.band = kind === "ch" ? { kind: "ch", ch: Number(num) } : { kind: "det", det: Number(num) };
+    this.band = kind === "all" ? { kind: "all" } : kind === "ch" ? { kind: "ch", ch: Number(num) } : { kind: "det", det: Number(num) };
   }
 
   // ---- settings ------------------------------------------------------------------------

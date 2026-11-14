@@ -8,19 +8,21 @@ Coverage), interaction from the Aladin Lite demo (drag, zoom, globe), feel from 
 (full-screen data, thin translucent panels, fixed places for "what" and "where"). The flipbook follows
 WiseView. Target screenshots: `RESEARCH/docs/research/target-screens/` in the team folder.
 
-## Colour
+## Colour ("mission control", 14 Nov)
+No gradients, no bright colours, no highlighted backgrounds. Active state = a thin pale-steel line plus
+brighter/bolder text. Data colours are muted but distinguishable.
+
 | Token | Value | Used for |
 |---|---|---|
-| `--space` | `#05070B` | page and sky backdrop |
-| `--panel` | `rgba(16, 22, 34, .80)` + blur | floating panels over the sky |
-| `--panel-solid` | `#101622` | bars, fallback when blur is unavailable |
-| `--line` | `rgba(190, 210, 240, .16)` | hairlines, control borders |
-| `--text` | `#F2F5FA` | text |
-| `--text-2` | `rgba(242, 245, 250, .70)` | secondary text |
-| `--accent` | `#8DB7F2` | active tab, focus ring, selected control |
-| `--target` | `#FFB547` | the searched position on the sky |
+| `--space` | `#04060A` | page and sky backdrop |
+| `--panel` / `--panel-solid` | `rgba(11,16,24,.90)` / `#0A0F17` | panels and bars |
+| `--line` / `--line-strong` | steel at 14% / 34% | hairlines, control borders |
+| `--text` | `#DCE3EC` | text (secondary 64%, tertiary 44%) |
+| `--accent` | `#9DB2C8` | thin active-state lines and focus ring only, never a fill |
+| `--target` | `#C5D0DC` | the searched position on the sky |
+| `--brighter` / `--dimmer` | `#C08A5E` / `#6D97BC` | change maps |
 
-Wavelength swatches use the infrared ramp (0.75 µm blue → 5 µm red), only next to wavelength values.
+Visits: `#7F9DBB #7FA89F #B08C9B #B3A47E #9C98B8 #B48E7C`. Wavelength dots: a muted blue→red ramp.
 
 ## Type
 Public Sans (USWDS), weights 400/500/600. Sizes 12 / 14 / 16 / 20. Numbers use tabular figures.

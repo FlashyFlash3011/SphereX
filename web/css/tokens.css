@@ -1,16 +1,19 @@
 /* Design tokens. See web/DESIGN.md for what each one is for. */
 :root {
-  --space: #05070B; /* unslop-ignore: the night sky backdrop, chosen on purpose */
-  --panel: rgba(16, 22, 34, .80);
-  --panel-solid: #101622;
-  --line: rgba(190, 210, 240, .16);
-  --line-strong: rgba(190, 210, 240, .32);
-  --text: #F2F5FA;
-  --text-2: rgba(242, 245, 250, .70);
-  --text-3: rgba(242, 245, 250, .52);
-  --accent: #8DB7F2;
-  --accent-soft: rgba(141, 183, 242, .16);
-  --target: #FFB547;
+  --space: #04060A; /* unslop-ignore: the night sky backdrop, chosen on purpose */
+  --panel: rgba(11, 16, 24, .90);
+  --panel-solid: #0A0F17;
+  --line: rgba(150, 172, 198, .14);
+  --line-strong: rgba(150, 172, 198, .34);
+  --text: #DCE3EC;
+  --text-2: rgba(220, 227, 236, .64);
+  --text-3: rgba(220, 227, 236, .44);
+  --accent: #9DB2C8;          /* pale steel: thin lines for active state and focus, never a fill */
+  --accent-soft: transparent;  /* no highlighted backgrounds */
+  --target: #C5D0DC;           /* the searched position: pale steel, not a bright colour */
+  --error: #C9A3A3;
+  --brighter: #C08A5E;         /* change maps: muted amber = got brighter */
+  --dimmer: #6D97BC;           /* change maps: muted blue = got dimmer */
 
   --font: "Public Sans", "Helvetica Neue", Arial, sans-serif;
   --text-xs: 12px;

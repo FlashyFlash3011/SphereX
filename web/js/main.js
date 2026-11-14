@@ -63,14 +63,14 @@ async function startSky() {
     showSettingsControl: false,
     showShareControl: false,
     showContextMenu: false,
-    backgroundColor: "rgb(5, 7, 11)",
+    backgroundColor: "rgb(4, 6, 10)",
     log: false,                      // no usage ping to CDS
   });
   // Aladin creates the map layer a moment after start-up; wait for it (needed to change colour plane).
   for (let i = 0; i < 100 && !aladin.getBaseImageLayer(); i++) await new Promise((r) => setTimeout(r, 50));
   spherexLayer = aladin.getBaseImageLayer();
-  markers = A.catalog({ name: "Search position", shape: "cross", color: "#FFB547", sourceSize: 22 });
-  outline = A.graphicOverlay({ color: "#FFB547", lineWidth: 1.5 });
+  markers = A.catalog({ name: "Search position", shape: "cross", color: "#C5D0DC", sourceSize: 22 });
+  outline = A.graphicOverlay({ color: "#C5D0DC", lineWidth: 1.5 });
   results = new Results(A, aladin);
   aladin.addCatalog(markers);
   aladin.addOverlay(outline);

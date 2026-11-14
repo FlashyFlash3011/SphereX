@@ -31,8 +31,8 @@ export function angleText(deg) {
 }
 
 // Wavelength → colour on the infrared ramp (0.75 µm blue … 5 µm red).
-const RAMP = [[0.75, 0x6F, 0x7B, 0xFF], [1.6, 0x35, 0xC6, 0xC0], [2.4, 0xB9, 0xD6, 0x50],
-              [3.8, 0xFF, 0xB1, 0x3D], [5.0, 0xE8, 0x47, 0x2B]];
+const RAMP = [[0.75, 0x7E, 0x8F, 0xC4], [1.6, 0x6F, 0xA6, 0xA2], [2.4, 0xA3, 0xAE, 0x7C],
+              [3.8, 0xC2, 0xA2, 0x72], [5.0, 0xB9, 0x7E, 0x6C]];   // blue → red, muted
 export function wavelengthColour(um) {
   const x = Math.min(Math.max(um, RAMP[0][0]), RAMP[RAMP.length - 1][0]);
   for (let i = 1; i < RAMP.length; i++) {
@@ -41,5 +41,5 @@ export function wavelengthColour(um) {
       return `rgb(${[1, 2, 3].map((k) => Math.round(a[k] + (b[k] - a[k]) * f)).join(" ")})`;
     }
   }
-  return "rgb(232 71 43)";
+  return "rgb(185 126 108)";
 }

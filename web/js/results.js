@@ -3,8 +3,8 @@ import { decText, raText } from "./format.js";
 
 const $ = (id) => document.getElementById(id);
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-// Visit colours: distinct on the dark sky, and different from the amber search marker.
-const VISIT_COLOURS = ["#6CA6FF", "#3DD1B5", "#F27EB0", "#C6D45A", "#A9B4FF", "#FF8E6B"];
+// Visit colours: muted, distinct from each other on the dark sky, none of them bright.
+const VISIT_COLOURS = ["#7F9DBB", "#7FA89F", "#B08C9B", "#B3A47E", "#9C98B8", "#B48E7C"];
 
 export const visitColour = (v) => VISIT_COLOURS[v % VISIT_COLOURS.length];
 
@@ -25,8 +25,8 @@ export class Results {
     this.sort = { key: "mjd", dir: 1 };
     this.selected = -1;
     this.outlines = new Map();     // visit → overlay
-    this.selection = A.graphicOverlay({ color: "#FFFFFF", lineWidth: 3 });
-    this.centres = A.catalog({ name: "Photo centres", shape: "square", sourceSize: 9, color: "#8DB7F2" });
+    this.selection = A.graphicOverlay({ color: "#DCE3EC", lineWidth: 2.5 });
+    this.centres = A.catalog({ name: "Photo centres", shape: "square", sourceSize: 9, color: "#9DB2C8" });
     aladin.addOverlay(this.selection);
     aladin.addCatalog(this.centres);
     this.centres.hide();

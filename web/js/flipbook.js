@@ -62,7 +62,7 @@ void main() {
     float g = b < -1e29 ? 0.5 : mix(0.5, shade(b), 0.45);
     vec3 col = vec3(g);
     float a = clamp((abs(v) - u_thr) / u_thr, 0.0, 1.0);
-    if (abs(v) >= u_thr) col = mix(col, v > 0.0 ? vec3(1.0, 0.56, 0.16) : vec3(0.16, 0.62, 1.0), 0.55 + 0.45 * a);
+    if (abs(v) >= u_thr) col = mix(col, v > 0.0 ? vec3(0.753, 0.541, 0.369) : vec3(0.427, 0.592, 0.737), 0.6 + 0.4 * a);   // muted amber / muted blue
     o = vec4(col, 1.0);
     return;
   }

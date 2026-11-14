@@ -438,7 +438,7 @@ export class Flip {
     // The search position is the centre of the patch; draw an open crosshair so the star stays visible.
     const zoom = this.book.state.zoom, px = (w / (this.run ? this.run.n : 64)) * zoom;
     const gap = Math.max(10, px * 1.6), len = Math.max(10, px * 1.4);
-    ctx.strokeStyle = "#FFB547";
+    ctx.strokeStyle = "#C5D0DC";
     ctx.lineWidth = 2;
     ctx.beginPath();
     for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
@@ -456,14 +456,14 @@ export class Flip {
     for (const c of changes) {
       const [sx, sy] = at(c);
       if (sx < 0 || sy < 0 || sx > w || sy > h) continue;
-      ctx.strokeStyle = c.s > 0 ? "#FF8F29" : "#299EFF";
+      ctx.strokeStyle = c.s > 0 ? "#C08A5E" : "#6D97BC";
       ctx.beginPath();
       ctx.arc(sx, sy, r, 0, Math.PI * 2);
       ctx.stroke();
     }
     // "Moved": an arrow from where it was (blue) to where it is now (orange).
     if (!found) return;
-    ctx.strokeStyle = ctx.fillStyle = "#FFFFFF";
+    ctx.strokeStyle = ctx.fillStyle = "#DCE3EC";
     ctx.lineWidth = 2;
     for (const m of found.moves) {
       const [x1, y1] = at(m.from), [x2, y2] = at(m.to);

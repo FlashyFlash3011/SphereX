@@ -107,7 +107,7 @@ function significance(A, B, size) {
 }
 
 // Clear changes: local peaks at least `thr` times the noise, backed by a neighbour (not one lone pixel).
-function findChanges(S, n, thr) {
+function findChanges(S, n, thr, minSupport = 1) {
   const out = [];
   for (let y = 1; y < n - 1; y++) {
     for (let x = 1; x < n - 1; x++) {
@@ -123,7 +123,7 @@ function findChanges(S, n, thr) {
           if (Math.sign(w) === Math.sign(v) && Math.abs(w) >= thr / 2) support++;
         }
       }
-      if (peak && support >= 1) out.push({ x, y, s: v });
+      if (peak && support >= minSupport) out.push({ x, y, s: v });
     }
   }
   // One ring per change: drop peaks within 3 pixels of a stronger one of the same sign.
@@ -133,6 +133,31 @@ function findChanges(S, n, thr) {
     if (!kept.some((k) => Math.sign(k.s) === Math.sign(c.s) && (k.x - c.x) ** 2 + (k.y - c.y) ** 2 <= 9)) kept.push(c);
   }
   return kept.slice(0, 40);
+}
+
+// What the rings likely mean: a dimmer spot with a brighter spot right next to it is one thing that moved
+// (from the blue spot to the orange one). Anything left is "brighter or new" / "fainter or gone".
+const MOVE_PAIR_PX = 4.5;
+function interpret(changes) {
+  const blue = changes.filter((c) => c.s < 0), orange = changes.filter((c) => c.s > 0), used = new Set(), moves = [];
+  for (const b of [...blue].sort((p, q) => Math.abs(q.s) - Math.abs(p.s))) {
+    let best = null, bestD = MOVE_PAIR_PX ** 2;
+    for (const o of orange) {
+      const d = (o.x - b.x) ** 2 + (o.y - b.y) ** 2;
+      if (!used.has(o) && d <= bestD) { best = o; bestD = d; }
+    }
+    if (best) { used.add(best); used.add(b); moves.push({ from: b, to: best }); }
+  }
+  return { moves, brighter: orange.filter((o) => !used.has(o)), fainter: blue.filter((b) => !used.has(b)) };
+}
+
+function describe(found) {
+  const parts = [];
+  const n = (k, one, many) => `${k} ${k === 1 ? one : many}`;
+  if (found.moves.length) parts.push(n(found.moves.length, "thing moved", "things moved"));
+  if (found.brighter.length) parts.push(`${found.brighter.length} got brighter or appeared`);
+  if (found.fainter.length) parts.push(`${found.fainter.length} got fainter or disappeared`);
+  return parts.length ? parts.join(", ") : "no clear changes";
 }
 
 async function getJson(url, options) {
@@ -269,24 +294,54 @@ export class Flip {
           }
           const A = visitStats(refList.map((f) => run.px.get(f.i)), n2), B = visitStats(nowList.map((f) => run.px.get(f.i)), n2);
           const S = significance(A, B, n2);
-          const changes = findChanges(S, run.n, this.thr);
+          const changes = findChanges(S, run.n, this.thr), found = interpret(changes);
           views.push({
             title: `${now.range} vs ${ref.range}`,
-            sub: `Visit ${now.v + 1} compared with visit ${ref.v + 1}, using the ${shared.size} colour${shared.size === 1 ? "" : "s"} both share: `
-              + `${changes.length || "no"} clear change${changes.length === 1 ? "" : "s"} (${this.thr}× the noise or more)`,
+            sub: `Visit ${now.v + 1} compared with visit ${ref.v + 1} (the ${shared.size} colour${shared.size === 1 ? "" : "s"} both share): ${describe(found)}`,
+            found,
             label: `Visit ${now.v + 1} vs ${ref.v + 1}`, small: now.range,
             data: S, base: B.mean, changes,
           });
         }
         this.noCompare = groups.length < 2;
       }
-    } else {
+    } else if (this.compare === "off") {
       views = members.map((f, k) => ({
         title: dayText(f.utc),
         sub: `Photo ${k + 1} of ${members.length}, ${f.lam_um.toFixed(3)} µm, visit ${f.pass + 1}, ${f.utc.slice(11, 16)} UTC`,
         label: dayText(f.utc), small: `${f.lam_um.toFixed(2)} µm`,
         data: run.px.get(f.i),
       }));
+    } else {
+      // Each single photo against the earlier visit's photos in exactly the same colour.
+      const visits = [...new Set(members.map((f) => f.pass))].sort((a, b) => a - b);
+      const refStats = new Map();   // "visit:channel" → stats of that visit's photos in that colour
+      let skipped = 0;
+      for (const f of members) {
+        const at = visits.indexOf(f.pass);
+        if (at === 0) continue;   // the first visit is what the others are compared with
+        const refVisit = this.compare === "first" ? visits[0] : visits[at - 1];
+        const key = `${refVisit}:${f.channel}`;
+        if (!refStats.has(key)) {
+          const same = members.filter((g) => g.pass === refVisit && g.channel === f.channel);
+          refStats.set(key, same.length ? visitStats(same.map((g) => run.px.get(g.i)), n2) : null);
+        }
+        const A = refStats.get(key);
+        if (!A) { skipped++; continue; }
+        const px = run.px.get(f.i), noise = imageNoise(px);
+        const B = { mean: px, err: px.map((v) => (hasData(v) ? noise : NO_DATA)) };
+        // A single photo is noisy and can hold cosmic-ray hits (usually one pixel): require a change to cover
+        // at least 3 neighbouring pixels, as starlight always does.
+        const S = significance(A, B, n2), changes = findChanges(S, run.n, this.thr, 2), found = interpret(changes);
+        views.push({
+          title: dayText(f.utc),
+          sub: `Photo at ${f.lam_um.toFixed(3)} µm (visit ${f.pass + 1}) compared with visit ${refVisit + 1} in the same colour: ${describe(found)}`,
+          label: dayText(f.utc), small: `${f.lam_um.toFixed(2)} µm`,
+          data: S, base: px, changes, found,
+        });
+      }
+      this.noCompare = visits.length < 2;
+      this.skippedPhotos = skipped;
     }
     this.views = views;
     if (this.at >= views.length) this.at = 0;
@@ -378,7 +433,7 @@ export class Flip {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, w, h);
     const view = this.views[this.at];
-    if (view && view.changes && this.run) this.drawChanges(ctx, w, h, view.changes);
+    if (view && view.changes && this.run) this.drawChanges(ctx, w, h, view.changes, view.found);
     if (!$("flip-marker").checked || !this.views.length) return;
     // The search position is the centre of the patch; draw an open crosshair so the star stays visible.
     const zoom = this.book.state.zoom, px = (w / (this.run ? this.run.n : 64)) * zoom;
@@ -394,17 +449,34 @@ export class Flip {
   }
 
   // Rings around clear changes. Image row 0 is the south edge, so flip y for the screen.
-  drawChanges(ctx, w, h, changes) {
-    const n = this.run.n, zoom = this.book.state.zoom, px = (w / n) * zoom;
+  drawChanges(ctx, w, h, changes, found) {
+    const n = this.run.n, zoom = this.book.state.zoom, px = (w / n) * zoom, r = Math.max(7, px * 2.2);
+    const at = (c) => [(0.5 + ((c.x + 0.5) / n - 0.5) * zoom) * w, (0.5 + ((1 - (c.y + 0.5) / n) - 0.5) * zoom) * h];
     ctx.lineWidth = 2;
     for (const c of changes) {
-      const sx = (0.5 + ((c.x + 0.5) / n - 0.5) * zoom) * w;
-      const sy = (0.5 + ((1 - (c.y + 0.5) / n) - 0.5) * zoom) * h;
+      const [sx, sy] = at(c);
       if (sx < 0 || sy < 0 || sx > w || sy > h) continue;
       ctx.strokeStyle = c.s > 0 ? "#FF8F29" : "#299EFF";
       ctx.beginPath();
-      ctx.arc(sx, sy, Math.max(7, px * 2.2), 0, Math.PI * 2);
+      ctx.arc(sx, sy, r, 0, Math.PI * 2);
       ctx.stroke();
+    }
+    // "Moved": an arrow from where it was (blue) to where it is now (orange).
+    if (!found) return;
+    ctx.strokeStyle = ctx.fillStyle = "#FFFFFF";
+    ctx.lineWidth = 2;
+    for (const m of found.moves) {
+      const [x1, y1] = at(m.from), [x2, y2] = at(m.to);
+      const ang = Math.atan2(y2 - y1, x2 - x1), len = Math.hypot(x2 - x1, y2 - y1);
+      if (len < 2) continue;
+      const pad = Math.min(r * 0.6, len / 3);
+      const ax = x1 + Math.cos(ang) * pad, ay = y1 + Math.sin(ang) * pad, bx = x2 - Math.cos(ang) * pad, by = y2 - Math.sin(ang) * pad;
+      ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(bx, by);
+      ctx.lineTo(bx - 8 * Math.cos(ang - 0.45), by - 8 * Math.sin(ang - 0.45));
+      ctx.lineTo(bx - 8 * Math.cos(ang + 0.45), by - 8 * Math.sin(ang + 0.45));
+      ctx.closePath(); ctx.fill();
     }
   }
 
@@ -475,7 +547,6 @@ export class Flip {
     for (const b of $("flip-mode").querySelectorAll("button")) {
       b.addEventListener("click", () => {
         this.mode = b.dataset.mode;
-        if (this.mode === "photos" && this.compare !== "off") $("flip-compare").querySelector('[data-compare="off"]').click();
         for (const o of $("flip-mode").querySelectorAll("button")) o.setAttribute("aria-pressed", String(o === b));
         this.at = 0;
         this.rebuild();
@@ -486,10 +557,6 @@ export class Flip {
         this.compare = b.dataset.compare;
         for (const o of $("flip-compare").querySelectorAll("button")) o.setAttribute("aria-pressed", String(o === b));
         $("thr-setting").hidden = this.compare === "off";
-        if (this.compare !== "off" && this.mode !== "visits") {   // comparing works on whole visits
-          this.mode = "visits";
-          for (const o of $("flip-mode").querySelectorAll("button")) o.setAttribute("aria-pressed", String(o.dataset.mode === "visits"));
-        }
         this.at = 0;
         this.rebuild();
       });

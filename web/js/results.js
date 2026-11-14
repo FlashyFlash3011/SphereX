@@ -56,9 +56,12 @@ export class Results {
     $("results-where").textContent = `${raText(data.ra)}  ${decText(data.dec)}`;
     const n = data.total, nv = data.visits.length;
     const filtered = data.total_all !== data.total ? ` (of ${data.total_all} before your filters)` : "";
+    const missing = (data.unavailable || []).includes("recent")
+      ? " NASA's archive isn't answering for the newest photos (after mid-May 2026) right now, so they're not included; search again later."
+      : (data.unavailable || []).includes("older") ? " NASA's archive isn't answering for the older photos right now; search again later." : "";
     $("results-summary").textContent = n
-      ? `SPHEREx took ${n} photo${n === 1 ? "" : "s"} of this spot${filtered}, during ${nv} visit${nv === 1 ? "" : "s"}.`
-      : "";
+      ? `SPHEREx took ${n} photo${n === 1 ? "" : "s"} of this spot${filtered}, during ${nv} visit${nv === 1 ? "" : "s"}.${missing}`
+      : missing.trim();
     $("results-empty").hidden = n > 0;
     $("results-empty").textContent = data.total_all === 0
       ? "SPHEREx has no photos of this spot yet. It maps the whole sky every six months, so try again later, or try another place."

@@ -27,6 +27,7 @@ MAX_BUILDING = 3  # stacks being built at once, all visitors together
 MAX_IN_MEMORY = 8
 MAX_FRAMES_PER_REQUEST = 64
 _ID = re.compile(r"^[0-9a-f]{16}$")
+ARCHIVE_DOWN = "NASA's SPHEREx archive (IRSA) isn't answering right now. That's on their side; try again in a few minutes."
 
 app = FastAPI(title="SphereX", docs_url=None, redoc_url=None, openapi_url=None)
 
@@ -160,15 +161,17 @@ def search(ra: float, dec: float, dets: str = Query("1,2,3,4,5,6", max_length=11
     key = (round(ra, 4), round(dec, 4))
     with _lock:
         found = _searches.get(key)
+    unavailable: list[str] = []
     if found is None:
         try:
-            found = irsa.search(ra, dec)
+            found, unavailable = irsa.search_status(ra, dec)
         except FetchError:
-            raise HTTPException(502, "NASA's archive didn't answer. Try again in a moment.")
-        with _lock:
-            _searches[key] = found
-            while len(_searches) > 64:
-                _searches.popitem(last=False)
+            raise HTTPException(502, ARCHIVE_DOWN)
+        if not unavailable:  # keep only complete answers, so a later search can fill in what was missing
+            with _lock:
+                _searches[key] = found
+                while len(_searches) > 64:
+                    _searches.popitem(last=False)
     chosen = [e for e in found if e.det in wanted and (lo is None or e.t_min >= lo) and (hi is None or e.t_min < hi)]
     visit = channels.assign_passes([e.t_min for e in found])  # visits from all photos, so numbering is stable
     index = {id(e): i for i, e in enumerate(found)}
@@ -187,6 +190,7 @@ def search(ra: float, dec: float, dets: str = Query("1,2,3,4,5,6", max_length=11
         })
     return {
         "ra": ra, "dec": dec, "total_all": len(found), "total": len(photos),
+        "unavailable": ["recent" if c.endswith("qr3") else "older" for c in unavailable],
         "visits": [{"visit": v, "start": stack.mjd_to_utc(min(t)), "end": stack.mjd_to_utc(max(t)), "n": len(t)}
                    for v, t in sorted(visits.items())],
         "photos": photos,
@@ -225,7 +229,7 @@ def create_stack(request: Request, ra: float, dec: float, size: int = 64, first:
     except FetchError:
         with _lock:
             _building.pop(sid, None)
-        raise HTTPException(502, "NASA's archive didn't answer. Try again in a moment.")
+        raise HTTPException(502, ARCHIVE_DOWN)
     with _lock:
         _remember(s)
     if not s.exposures:

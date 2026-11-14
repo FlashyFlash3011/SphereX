@@ -251,9 +251,9 @@ def test_search_endpoint_validates_and_filters(monkeypatch):
 
     def fake_search(ra, dec):
         called.append((ra, dec))
-        return fake_exposures(6)
+        return fake_exposures(6), []
 
-    monkeypatch.setattr(irsa, "search", fake_search)
+    monkeypatch.setattr(irsa, "search_status", fake_search)
     main._searches.clear()
 
     def run(ra=10.0, dec=20.0, dets="1,2,3,4,5,6", date_from=None, date_to=None):
@@ -314,3 +314,19 @@ def test_cancelled_stack_stops_fetching(monkeypatch):
     s.cancel()
     s.build()
     assert calls == [] and s.done
+
+
+def test_one_collection_down_still_returns_the_other(monkeypatch):
+    sample = (FIXTURES / "sia_sample.csv").read_text()
+
+    def fake_fetch(url, **kw):
+        if "spherex_qr3" in url:
+            raise net.FetchError("502")
+        return sample.encode()
+
+    monkeypatch.setattr(net, "fetch", fake_fetch)
+    found, failed = irsa.search_status(269.4, 4.7)
+    assert len(found) == 3 and failed == ["spherex_qr3"]
+    monkeypatch.setattr(net, "fetch", lambda url, **kw: (_ for _ in ()).throw(net.FetchError("502")))
+    with pytest.raises(net.FetchError):
+        irsa.search_status(269.4, 4.7)

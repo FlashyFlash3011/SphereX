@@ -76,16 +76,33 @@ def parse_sia_csv(text: str) -> list[Exposure]:
     return out
 
 
-def search(ra: float, dec: float) -> list[Exposure]:
-    """All exposures covering (ra, dec), oldest first."""
-    urls = [build_sia_url(ra, dec, c) for c in COLLECTIONS]
+def search_status(ra: float, dec: float) -> tuple[list[Exposure], list[str]]:
+    """All exposures covering (ra, dec), oldest first, plus the collections that didn't answer.
+    One collection failing (the archive has partial outages) still returns the other's photos.
+    Raises net.FetchError only if every collection fails."""
+    urls = {c: build_sia_url(ra, dec, c) for c in COLLECTIONS}
+
+    def get(c):
+        try:
+            return c, net.fetch(urls[c], max_bytes=6_000_000).decode("utf-8", "replace")
+        except net.FetchError:
+            return c, None
+
     with ThreadPoolExecutor(len(urls)) as pool:
-        texts = list(pool.map(lambda u: net.fetch(u, max_bytes=6_000_000).decode("utf-8", "replace"), urls))
+        answers = list(pool.map(get, COLLECTIONS))
+    failed = [c for c, t in answers if t is None]
+    if len(failed) == len(COLLECTIONS):
+        raise net.FetchError("archive search failed")
     found: dict[tuple[str, int], Exposure] = {}
-    for t in texts:
-        for e in parse_sia_csv(t):
+    for _, t in answers:
+        for e in parse_sia_csv(t or ""):
             found[(e.obs_id, e.det)] = e
-    return sorted(found.values(), key=lambda e: (e.t_min, e.det))
+    return sorted(found.values(), key=lambda e: (e.t_min, e.det)), failed
+
+
+def search(ra: float, dec: float) -> list[Exposure]:
+    """All exposures covering (ra, dec) that the archive returned, oldest first."""
+    return search_status(ra, dec)[0]
 
 
 def footprint_centre(points: tuple[tuple[float, float], ...]) -> tuple[float, float]:

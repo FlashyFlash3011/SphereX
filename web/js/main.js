@@ -398,9 +398,6 @@ $("search").addEventListener("submit", (e) => { e.preventDefault(); search(); })
 // ---- about ---------------------------------------------------------------------------------
 $("about-open").addEventListener("click", () => $("about").showModal());
 
-// For debugging in the browser console.
-window.sphereX = { get aladin() { return aladin; }, get layer() { return spherexLayer; } };
-
 // Wake the server as soon as the page opens: the free server sleeps when idle and takes about a minute to start.
 fetch(`${API}/health`).catch(() => {});
 

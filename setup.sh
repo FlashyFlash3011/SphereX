@@ -22,5 +22,5 @@ fi
 echo "==> installing pinned requirements"
 .venv/bin/python -m pip install --quiet --upgrade pip
 .venv/bin/python -m pip install --quiet -r requirements.txt
-.venv/bin/python -c 'import astropy, numpy, scipy, PIL, fastapi; assert astropy.__version__ == "7.2.0", astropy.__version__'
+.venv/bin/python -c 'import astropy, numpy, scipy, fastapi, certifi; assert astropy.__version__ == "7.2.0", astropy.__version__'
 echo "OK: $(.venv/bin/python --version), astropy 7.2.0. Next: source .venv/bin/activate"

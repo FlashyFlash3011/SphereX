@@ -60,7 +60,7 @@ Libraries and assets:
 - [Aladin Lite](https://github.com/cds-astro/aladin-lite) 3.8.2, CDS Strasbourg, LGPL-3.0-or-later
   (unmodified copy in `web/vendor/`, licence included).
 - [Astropy](https://www.astropy.org) 7.2.0 (BSD-3), NumPy (BSD-3), SciPy (BSD-3), FastAPI (MIT),
-  Uvicorn (BSD-3), Pillow (MIT-CMU).
+  Uvicorn (BSD-3), certifi (MPL-2.0).
 - [Public Sans](https://public-sans.digital.gov) typeface (SIL Open Font License), via Google Fonts.
 
 This project is not affiliated with or endorsed by NASA.

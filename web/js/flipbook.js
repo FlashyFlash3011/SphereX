@@ -22,6 +22,9 @@ uniform int u_n;
 uniform bool u_diff;     // layer holds change significance; u_base holds the plain image underneath
 uniform int u_base;
 uniform float u_thr;     // only colour changes at least this many times the noise
+uniform int u_ghost;     // 0 = off, 1 = plain ghost, 2 = coloured (earlier frame cyan, current red)
+uniform int u_ghostLayer;
+uniform float u_ghostAlpha;
 in vec2 v_uv;
 out vec4 o;
 
@@ -31,11 +34,12 @@ float fetchAt(ivec2 p, int layer) {
 }
 float fetchPx(ivec2 p) { return fetchAt(p, u_layer); }
 
-float shade(float v) {
+float brightness(float v) {   // 0 = darkest, 1 = brightest, after contrast and stretch
   float t = clamp((v - u_cuts.x) / max(u_cuts.y - u_cuts.x, 1e-6), 0.0, 1.0);
   if (u_soft) t = log(t * 10.0 + sqrt(t * t * 100.0 + 1.0)) / 2.998223;   // asinh(10 t) / asinh(10)
-  return u_invert ? 1.0 - t : t;
+  return t;
 }
+float shade(float v) { float t = brightness(v); return u_invert ? 1.0 - t : t; }
 
 void main() {
   // Row 0 of the image is its south edge, so the top of the screen reads the last row (north up).
@@ -57,13 +61,26 @@ void main() {
     return;
   }
   if (u_diff) {
-    // Faint sky underneath for orientation; orange = got brighter, blue = got dimmer.
+    // Faint sky underneath for orientation; red = got brighter, cyan = got fainter.
     float b = fetchAt(ivec2(floor(xy + 0.5)), u_base);
     float g = b < -1e29 ? 0.5 : mix(0.5, shade(b), 0.45);
     vec3 col = vec3(g);
     float a = clamp((abs(v) - u_thr) / u_thr, 0.0, 1.0);
-    if (abs(v) >= u_thr) col = mix(col, v > 0.0 ? vec3(0.753, 0.541, 0.369) : vec3(0.427, 0.592, 0.737), 0.6 + 0.4 * a);   // muted amber / muted blue
+    if (abs(v) >= u_thr) col = mix(col, v > 0.0 ? vec3(0.878, 0.267, 0.247) : vec3(0.180, 0.659, 0.749), 0.6 + 0.4 * a);   // red / cyan
     o = vec4(col, 1.0);
+    return;
+  }
+  if (u_ghost > 0) {
+    float g = fetchAt(ivec2(floor(xy + 0.5)), u_ghostLayer);
+    float tc = brightness(v), tg = g < -1e29 ? tc : brightness(g);
+    if (u_ghost == 1) {                       // plain: the earlier frame shows faintly through
+      float t = max(tc, tg * u_ghostAlpha);
+      o = vec4(vec3(u_invert ? 1.0 - t : t), 1.0);
+    } else {                                  // coloured: red = now, cyan = before, unchanged = white/grey
+      float tb = mix(tc, tg, u_ghostAlpha);
+      vec3 c = vec3(tc, tb, tb);
+      o = vec4(u_invert ? vec3(1.0) - vec3(tb, tc, tc) : c, 1.0);
+    }
     return;
   }
   o = vec4(vec3(shade(v)), 1.0);
@@ -76,7 +93,7 @@ export class Flipbook {
     this.ok = !!this.gl;
     this.n = 0;
     this.layers = 0;
-    this.state = { layer: -1, cuts: [0, 1], zoom: 1, soft: true, invert: true, smooth: false, diff: false, base: 0, thr: 5 };
+    this.state = { layer: -1, cuts: [0, 1], zoom: 1, soft: true, invert: true, smooth: false, diff: false, base: 0, thr: 5, ghost: 0, ghostLayer: 0, ghostAlpha: 0.7 };
     if (!this.ok) return;
     const gl = this.gl;
     const prog = gl.createProgram();
@@ -95,7 +112,7 @@ export class Flipbook {
     const loc = gl.getAttribLocation(prog, "a_pos");
     gl.enableVertexAttribArray(loc);
     gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
-    this.u = Object.fromEntries(["u_layer", "u_cuts", "u_zoom", "u_soft", "u_invert", "u_smooth", "u_n", "u_diff", "u_base", "u_thr"]
+    this.u = Object.fromEntries(["u_layer", "u_cuts", "u_zoom", "u_soft", "u_invert", "u_smooth", "u_n", "u_diff", "u_base", "u_thr", "u_ghost", "u_ghostLayer", "u_ghostAlpha"]
       .map((k) => [k, gl.getUniformLocation(prog, k)]));
     this.maxLayers = gl.getParameter(gl.MAX_ARRAY_TEXTURE_LAYERS);
     new ResizeObserver(() => this.draw()).observe(canvas);
@@ -147,6 +164,9 @@ export class Flipbook {
     gl.uniform1i(this.u.u_diff, s.diff ? 1 : 0);
     gl.uniform1i(this.u.u_base, s.base);
     gl.uniform1f(this.u.u_thr, s.thr);
+    gl.uniform1i(this.u.u_ghost, s.ghost);
+    gl.uniform1i(this.u.u_ghostLayer, s.ghostLayer);
+    gl.uniform1f(this.u.u_ghostAlpha, s.ghostAlpha);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   }
 }

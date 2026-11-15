@@ -155,8 +155,26 @@
             <button type="button" data-compare="first" aria-pressed="false">With the first</button>
             <button type="button" data-compare="prev" aria-pressed="false">With the previous</button>
           </div>
-          <span class="setting-help">Shows only what changed between visits: orange got brighter, blue got dimmer.</span>
+          <span class="setting-help">Shows only what changed between visits: red got brighter, cyan got fainter.</span>
         </fieldset>
+        <fieldset class="setting">
+          <legend class="setting-label">Ghost of an earlier frame</legend>
+          <div class="segmented wide" id="flip-ghost">
+            <button type="button" data-ghost="off" aria-pressed="true">Off</button>
+            <button type="button" data-ghost="prev" aria-pressed="false">Previous</button>
+            <button type="button" data-ghost="first" aria-pressed="false">First</button>
+          </div>
+          <span class="setting-help">Lays an earlier frame under the current one. Coloured: red is now, cyan is before, unchanged stars look white.</span>
+        </fieldset>
+        <div class="setting" id="ghost-options" hidden>
+          <div class="segmented wide" id="flip-ghost-style">
+            <button type="button" data-style="colour" aria-pressed="true">Coloured</button>
+            <button type="button" data-style="plain" aria-pressed="false">Plain</button>
+          </div>
+          <label class="setting-label" for="flip-ghost-alpha">Ghost strength</label>
+          <input type="range" id="flip-ghost-alpha" min="0.2" max="1" step="0.05" value="0.7">
+          <label class="toggle"><input type="checkbox" id="flip-ghost-marks" checked> Mark clear changes</label>
+        </div>
         <label class="setting" id="thr-setting" hidden>
           <span class="setting-label">How sure must a change be <output id="flip-thr-out">5×</output></span>
           <input type="range" id="flip-thr" min="3" max="10" step="0.5" value="5">

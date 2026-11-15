@@ -319,7 +319,7 @@ body.spec-mode .toolbar .plane, body.spec-mode .toolbar .select, body.spec-mode 
 .changes { margin: 0 var(--gap-5) var(--gap-2); border-top: 1px solid var(--line); max-height: 176px; overflow-y: auto; }
 .changes-title { font-size: var(--text-s); font-weight: 600; padding: var(--gap-2) 0 var(--gap-1); position: sticky; top: 0; background: var(--space); }
 .changes-meta { font-weight: 400; color: var(--text-3); font-size: var(--text-xs); margin-left: var(--gap-2); }
-.change-list { display: grid; }
+.change-list { display: grid; list-style: none; margin: 0; padding: 0; }
 .change-item { border-bottom: 1px solid var(--line); }
 .change-row {
   display: flex; align-items: baseline; gap: var(--gap-2); width: 100%; padding: 6px 0;

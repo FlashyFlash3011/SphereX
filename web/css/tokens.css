@@ -12,8 +12,8 @@
   --accent-soft: transparent;  /* no highlighted backgrounds */
   --target: #C5D0DC;           /* the searched position: pale steel, not a bright colour */
   --error: #C9A3A3;
-  --brighter: #C08A5E;         /* change maps: muted amber = got brighter */
-  --dimmer: #6D97BC;           /* change maps: muted blue = got dimmer */
+  --brighter: #E0443F;         /* changes only: red = now / got brighter (the one place we use strong colour) */
+  --dimmer: #2EA8BF;           /* changes only: cyan = before / got fainter */
 
   --font: "Public Sans", "Helvetica Neue", Arial, sans-serif;
   --text-xs: 12px;

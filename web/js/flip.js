@@ -142,19 +142,19 @@ function findChanges(S, n, thr, minSupport = 1) {
 }
 
 // What the rings likely mean: a dimmer spot with a brighter spot right next to it is one thing that moved
-// (from the blue spot to the orange one). Anything left is "brighter or new" / "fainter or gone".
+// (from the cyan spot to the red one). Anything left is "brighter or new" / "fainter or gone".
 const MOVE_PAIR_PX = 4.5;
 function interpret(changes) {
-  const blue = changes.filter((c) => c.s < 0), orange = changes.filter((c) => c.s > 0), used = new Set(), moves = [];
-  for (const b of [...blue].sort((p, q) => Math.abs(q.s) - Math.abs(p.s))) {
+  const faded = changes.filter((c) => c.s < 0), brightened = changes.filter((c) => c.s > 0), used = new Set(), moves = [];
+  for (const b of [...faded].sort((p, q) => Math.abs(q.s) - Math.abs(p.s))) {
     let best = null, bestD = MOVE_PAIR_PX ** 2;
-    for (const o of orange) {
+    for (const o of brightened) {
       const d = (o.x - b.x) ** 2 + (o.y - b.y) ** 2;
       if (!used.has(o) && d <= bestD) { best = o; bestD = d; }
     }
     if (best) { used.add(best); used.add(b); moves.push({ from: b, to: best }); }
   }
-  return { moves, brighter: orange.filter((o) => !used.has(o)), fainter: blue.filter((b) => !used.has(b)) };
+  return { moves, brighter: brightened.filter((o) => !used.has(o)), fainter: faded.filter((b) => !used.has(b)) };
 }
 
 function describe(found) {
@@ -186,6 +186,10 @@ export class Flip {
     this.mode = "visits";
     this.compare = "off";
     this.thr = 5;
+    this.ghost = "off";
+    this.ghostStyle = "colour";
+    this.ghostAlpha = 0.7;
+    this.ghostMarks = true;
     this.size = 64;
     this.place = null;
     this.spot = null;          // the spot measured by the Spectrum tab (image pixels); null = centre
@@ -305,7 +309,7 @@ export class Flip {
         views = groups.map((g) => ({
           title: g.range,
           sub: `Visit ${g.v + 1} of ${nVisits}, ${g.list.length} photo${g.list.length === 1 ? "" : "s"} added together`,
-          label: `Visit ${g.v + 1}`, small: g.range, data: g.stats.mean,
+          label: `Visit ${g.v + 1}`, small: g.range, data: g.stats.mean, group: g,
         }));
       } else {
         // A visit with very few photos in this band can't be compared reliably (it makes false changes in every
@@ -314,21 +318,14 @@ export class Flip {
         this.smallVisits = groups.filter((g) => g.list.length < MIN_VISIT_PHOTOS);
         for (let k = 1; k < usable.length; k++) {
           const ref = this.compare === "first" ? usable[0] : usable[k - 1], now = usable[k];
-          // The colour trap: a detector spans a range of colours, and stars differ in brightness across it.
-          // Compare only photos taken in colours (channels) that BOTH visits have.
-          const shared = new Set(ref.list.map((f) => f.channel).filter((c) => now.list.some((f) => f.channel === c)));
-          const refList = ref.list.filter((f) => shared.has(f.channel)), nowList = now.list.filter((f) => shared.has(f.channel));
-          if (!shared.size) {
+          const cmp = this.compareGroups(ref, now);
+          if (!cmp) {
             views.push({ title: `${now.range} vs ${ref.range}`, label: `Visit ${now.v + 1} vs ${ref.v + 1}`, small: now.range,
                          sub: `Visit ${now.v + 1} and visit ${ref.v + 1} share no colours in this band, so they can't be compared fairly.`,
                          data: new Float32Array(n2).fill(NO_DATA), base: now.stats.mean, changes: [] });
             continue;
           }
-          const A = visitStats(refList.map((f) => run.px.get(f.i)), n2), B = visitStats(nowList.map((f) => run.px.get(f.i)), n2);
-          const S = significance(A, B, n2);
-          const changes = findChanges(S, run.n, this.thr), found = interpret(changes);
-          const meanYear = (list) => 2000 + (list.reduce((t, f) => t + f.mjd, 0) / list.length - 51544.5) / 365.25;
-          const inputs = { A, B, S, refList, nowList, refVisit: ref.v, nowVisit: now.v, years: [meanYear(refList), meanYear(nowList)] };
+          const { S, changes, found, inputs, shared } = cmp, B = inputs.B;
           views.push({
             title: `${now.range} vs ${ref.range}`,
             sub: `Visit ${now.v + 1} compared with visit ${ref.v + 1} (the ${shared.size} colour${shared.size === 1 ? "" : "s"} both share): ${describe(found)}`
@@ -345,7 +342,7 @@ export class Flip {
         title: dayText(f.utc),
         sub: `Photo ${k + 1} of ${members.length}, ${f.lam_um.toFixed(3)} µm, visit ${f.pass + 1}, ${f.utc.slice(11, 16)} UTC`,
         label: dayText(f.utc), small: `${f.lam_um.toFixed(2)} µm`,
-        data: run.px.get(f.i),
+        data: run.px.get(f.i), channel: f.channel,
       }));
     } else {
       // Each single photo against the earlier visit's photos in exactly the same colour.
@@ -420,7 +417,11 @@ export class Flip {
     $("flip-empty").hidden = true;
     $("flip-title").textContent = v.title;
     $("flip-sub").textContent = v.sub;
-    this.book.set({ layer: this.at, base: this.views.length + this.at });
+    const gi = this.ghostIndex();
+    this.ghostCmp = gi >= 0 ? this.ghostComparison(gi) : null;
+    this.book.set({ layer: this.at, base: this.views.length + this.at,
+                    ghost: gi >= 0 ? (this.ghostStyle === "plain" ? 1 : 2) : 0, ghostLayer: Math.max(gi, 0), ghostAlpha: this.ghostAlpha });
+    if (gi >= 0) $("flip-sub").textContent = `${v.sub}. Ghost: ${this.views[gi].label} (${this.ghostStyle === "plain" ? "faint" : "cyan"} = before${this.ghostStyle === "plain" ? "" : ", red = now"})`;
     this.renderStrip();
     this.renderChanges();
     this.drawMarker();
@@ -454,6 +455,42 @@ export class Flip {
     });
   }
 
+  // Compare two visits fairly: only the colours (channels) both have, because a detector spans a range of
+  // colours and stars differ in brightness across it (the colour trap). Returns null if they share none.
+  compareGroups(ref, now) {
+    const run = this.run, n2 = run.n * run.n;
+    const shared = new Set(ref.list.map((f) => f.channel).filter((c) => now.list.some((f) => f.channel === c)));
+    if (!shared.size) return null;
+    const refList = ref.list.filter((f) => shared.has(f.channel)), nowList = now.list.filter((f) => shared.has(f.channel));
+    const A = visitStats(refList.map((f) => run.px.get(f.i)), n2), B = visitStats(nowList.map((f) => run.px.get(f.i)), n2);
+    const S = significance(A, B, n2);
+    const changes = findChanges(S, run.n, this.thr), found = interpret(changes);
+    const meanYear = (list) => 2000 + (list.reduce((t, f) => t + f.mjd, 0) / list.length - 51544.5) / 365.25;
+    const inputs = { A, B, S, refList, nowList, refVisit: ref.v, nowVisit: now.v, years: [meanYear(refList), meanYear(nowList)] };
+    return { S, changes, found, inputs, shared };
+  }
+
+  // ---- ghost: an earlier frame laid under the current one ---------------------------------
+  ghostIndex() {
+    if (this.ghost === "off" || this.compare !== "off" || this.views.length < 2) return -1;
+    const cur = this.views[this.at];
+    let cands = this.views.map((v, k) => k).filter((k) => k !== this.at);
+    if (cur.channel !== undefined) cands = cands.filter((k) => this.views[k].channel === cur.channel);   // same colour only
+    const earlier = cands.filter((k) => k < this.at);
+    if (!earlier.length) return -1;
+    return this.ghost === "first" ? earlier[0] : earlier[earlier.length - 1];
+  }
+
+  // The ghost comparison (visits only, both with enough photos), so changes can be marked on the ghost view.
+  ghostComparison(gi) {
+    const cur = this.views[this.at], prev = this.views[gi];
+    if (!cur || !prev || !cur.group || !prev.group) return null;
+    if (cur.group.list.length < MIN_VISIT_PHOTOS || prev.group.list.length < MIN_VISIT_PHOTOS) return null;
+    cur.ghostCmp = cur.ghostCmp || {};
+    if (!(gi in cur.ghostCmp)) cur.ghostCmp[gi] = this.compareGroups(prev.group, cur.group);
+    return cur.ghostCmp[gi];
+  }
+
   // ---- "What changed": verdicts for each change in the current comparison ---------------
   cardsFor(view) {
     if (view.cards || !view.inputs || !view.found) return view.cards;
@@ -483,7 +520,7 @@ export class Flip {
   }
 
   renderChanges() {
-    const box = $("flip-changes"), list = $("change-list"), view = this.views[this.at];
+    const box = $("flip-changes"), list = $("change-list"), view = this.ghostCmp || this.views[this.at];
     const show = !!(view && view.inputs);
     box.hidden = !show;
     if (!show) return;
@@ -492,7 +529,7 @@ export class Flip {
       : this.run.gaiaState === "loading" ? "checking Gaia…" : "Gaia unavailable right now";
     const solid = cards.filter((c) => c.conf !== "weak").length;
     $("changes-meta").textContent = `${solid ? `${solid} clear` : "nothing clear"}, ${gaia}`;
-    const key = `${this.at}:${cards.length}:${this.run.gaiaState}:${!!this.showWeak}`;
+    const key = `${this.at}:${this.ghostCmp ? "g" : "c"}:${cards.length}:${this.run.gaiaState}:${!!this.showWeak}`;
     if (list.dataset.key === key) return;
     list.dataset.key = key;
     list.replaceChildren();
@@ -559,8 +596,8 @@ export class Flip {
     c.width = Math.round(w * dpr); c.height = Math.round(h * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, w, h);
-    const view = this.views[this.at];
-    if (view && view.changes && this.run) this.drawChanges(ctx, w, h, view.changes, view.found);
+    const view = this.ghostCmp || this.views[this.at];
+    if (view && view.changes && this.run && (this.ghostCmp ? this.ghostMarks : true)) this.drawChanges(ctx, w, h, view.changes, view.found);
     const card = view && view.cards && view.cards[this.selectedCard];
     if (card && this.run) {   // the change chosen in the list: a larger thin ring
       const n = this.run.n, zoom = this.book.state.zoom;
@@ -598,12 +635,12 @@ export class Flip {
     for (const c of changes) {
       const [sx, sy] = at(c);
       if (sx < 0 || sy < 0 || sx > w || sy > h) continue;
-      ctx.strokeStyle = c.s > 0 ? "#C08A5E" : "#6D97BC";
+      ctx.strokeStyle = c.s > 0 ? "#E0443F" : "#2EA8BF";
       ctx.beginPath();
       ctx.arc(sx, sy, r, 0, Math.PI * 2);
       ctx.stroke();
     }
-    // "Moved": an arrow from where it was (blue) to where it is now (orange).
+    // "Moved": an arrow from where it was (cyan) to where it is now (red).
     if (!found) return;
     ctx.strokeStyle = ctx.fillStyle = "#DCE3EC";
     ctx.lineWidth = 2;
@@ -723,11 +760,30 @@ export class Flip {
       b.addEventListener("click", () => {
         this.compare = b.dataset.compare;
         for (const o of $("flip-compare").querySelectorAll("button")) o.setAttribute("aria-pressed", String(o === b));
+        if (this.compare !== "off" && this.ghost !== "off") $("flip-ghost").querySelector('[data-ghost="off"]').click();   // one at a time
         $("thr-setting").hidden = this.compare === "off";
         this.at = 0;
         this.rebuild();
       });
     }
+    for (const b of $("flip-ghost").querySelectorAll("button")) {
+      b.addEventListener("click", () => {
+        this.ghost = b.dataset.ghost;
+        for (const o of $("flip-ghost").querySelectorAll("button")) o.setAttribute("aria-pressed", String(o === b));
+        $("ghost-options").hidden = this.ghost === "off";
+        if (this.ghost !== "off" && this.compare !== "off") $("flip-compare").querySelector('[data-compare="off"]').click();   // one at a time
+        this.render();
+      });
+    }
+    for (const b of $("flip-ghost-style").querySelectorAll("button")) {
+      b.addEventListener("click", () => {
+        this.ghostStyle = b.dataset.style;
+        for (const o of $("flip-ghost-style").querySelectorAll("button")) o.setAttribute("aria-pressed", String(o === b));
+        this.render();
+      });
+    }
+    $("flip-ghost-alpha").addEventListener("input", (e) => { this.ghostAlpha = Number(e.target.value); this.book.set({ ghostAlpha: this.ghostAlpha }); });
+    $("flip-ghost-marks").addEventListener("change", (e) => { this.ghostMarks = e.target.checked; this.drawMarker(); });
     $("flip-thr").addEventListener("input", (e) => {
       this.thr = Number(e.target.value);
       $("flip-thr-out").textContent = `${this.thr}×`;

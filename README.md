@@ -5,7 +5,7 @@ Center (SEC) and SpaceTAU at Tel Aviv University, in partnership with the Rakia 
 
 **Watch the infrared sky change.**  https://flashyflash3011.github.io/SphereX/
 
-![The SPHEREx infrared sky in SphereX](docs/images/1-sky.png)
+![The sky in SphereX, in visible-light colour](docs/images/1-sky.png)
 
 ## Why we built it
 
@@ -22,7 +22,7 @@ anyone to be able to pick a spot in the sky and simply watch it change.
 - **See every photo**: SPHEREx took of that spot, on the sky and in a list.
 - **Play the flipbook**: the photos lined up and played over time, one photo or one visit per frame.
 - **Spot the changes**: easy to read, accessible to the user, and clearly visible, with a color legend explaining the different changes, along side a ghosting feature(outlining clearly the 'ghost' of the previous frame).
-- **Understanding the changes**: every change gets a plain-words verdict, checked against ESA's Gaia star catalogue, like
+- **Understand the changes**: every change gets a plain-words verdict, checked against ESA's Gaia star catalogue, like
   *"Known moving star: Barnard's Star"* or *"Unknown mover: candidate"*.
 - **Read a star's fingerprint**: its brightness across SPHEREx's colours, with water, methane, CO₂ and CO marked.
 
@@ -34,7 +34,7 @@ flowchart LR
   repo[(Our GitHub repo)]
 
   subgraph web [Free hosting]
-    pages[GitHub Pages<br/>the website + 5 prepared targets]
+    pages[GitHub Pages<br/>the website]
     run[Google Cloud Run, Virginia<br/>our Python server:<br/>search, cut out, align]
   end
 
@@ -74,8 +74,9 @@ known moving star, with a measured motion that agrees with Gaia's. An ordinary p
 
 ![Coverage of Barnard's Star](docs/images/2-coverage.png)
 
-**What changed**: Aug 2026 compared with Aug 2025. The star has moved north, and SphereX explains it: 8.5″ ± 1.8″
-measured, 10.3″ predicted by Gaia, seen in 6 of 6 detectors.
+**What changed**: a photo from March 2026 compared with the previous visit, with a ghost of the earlier frame.
+Barnard's Star has moved north, and SphereX explains it: 9.4″ ± 1.8″ measured, 5.9″ predicted by Gaia for these
+dates, consistent, seen in 6 of 6 detectors.
 
 ![What changed on Barnard's Star](docs/images/3-changes.png)
 

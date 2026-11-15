@@ -3,7 +3,9 @@
 This solution was developed as part of NASA Space Apps Tel Aviv 2026. The event was led by the Space Engineering
 Center (SEC) and SpaceTAU at Tel Aviv University, in partnership with the Rakia Mission and Space Campus IL.
 
-**Watch the infrared sky change.** → https://flashyflash3011.github.io/SphereX/
+**Watch the infrared sky change.**  https://flashyflash3011.github.io/SphereX/
+
+![The SPHEREx infrared sky in SphereX](docs/images/1-sky.png)
 
 ## Why we built it
 
@@ -16,18 +18,40 @@ anyone to be able to pick a spot in the sky and simply watch it change.
 
 ## What you can do
 
-- **Search the sky** by name, by coordinates, or by clicking the SPHEREx all-sky map.
-- **See every photo** SPHEREx took of that spot, on the sky and in a list.
+- **Search the sky**: by name, by coordinates, or by clicking the SPHEREx all-sky map.
+- **See every photo**: SPHEREx took of that spot, on the sky and in a list.
 - **Play the flipbook**: the photos lined up and played over time, one photo or one visit per frame.
-- **Spot the changes**: green for brighter, purple for fainter, an arrow for anything that moved, and an optional
-  ghost of the earlier frame.
-- **Understand them**: every change gets a plain-words verdict, checked against ESA's Gaia star catalogue, like
+- **Spot the changes**: easy to read, accessible to the user, and clearly visible, with a color legend explaining the different changes, along side a ghosting feature(outlining clearly the 'ghost' of the previous frame).
+- **Understanding the changes**: every change gets a plain-words verdict, checked against ESA's Gaia star catalogue, like
   *"Known moving star: Barnard's Star"* or *"Unknown mover: candidate"*.
 - **Read a star's fingerprint**: its brightness across SPHEREx's colours, with water, methane, CO₂ and CO marked.
 
-The challenge's five test targets are built in, so they load instantly even when NASA's archive is offline.
-
 ## How it works
+
+```mermaid
+flowchart LR
+  user([Your browser])
+  repo[(Our GitHub repo)]
+
+  subgraph web [Free hosting]
+    pages[GitHub Pages<br/>the website + 5 prepared targets]
+    run[Google Cloud Run, Virginia<br/>our Python server:<br/>search, cut out, align]
+  end
+
+  subgraph data [Public archives]
+    sia[(NASA/IPAC IRSA<br/>which photos cover this spot?)]
+    s3[(NASA public storage<br/>SPHEREx photos, 65 MB each)]
+    gaia[(ESA Gaia DR3<br/>known stars and motions)]
+  end
+
+  user -- opens the site --> pages
+  user <-- searches a spot,<br/>gets aligned cut-outs of about 8 KB each --> run
+  run -- asks --> sia
+  run -- reads only the rows it needs --> s3
+  run -- fetches nearby stars --> gaia
+  repo -. every push .-> pages
+  repo -. every push, via Cloud Build .-> run
+```
 
 A small Python server does the heavy lifting. It asks NASA's IRSA archive which SPHEREx photos cover the spot,
 then reads only the few rows it needs from each 65 MB file in NASA's public storage. Each cut-out is cleaned,
@@ -43,17 +67,22 @@ Google Cloud Run.
 
 ## Results
 
-On Barnard's Star, the fastest-moving star in our sky, SphereX finds 358 photos from 3 visits and flags it as a
+For example, on Barnard's Star, the fastest-moving star in our sky, SphereX finds 358 photos from 3 visits and flags it as a
 known moving star, with a measured motion that agrees with Gaia's. An ordinary patch of sky comes back clean.
-Very faint, slow objects like WISE 0855 are still beyond it, and single photos are noisier than whole visits.
 
-## Run it yourself
+**Every photo of the spot**: 358 SPHEREx photos of Barnard's Star, outlined on the sky and listed by date.
 
-```bash
-git clone https://github.com/FlashyFlash3011/SphereX.git && cd SphereX
-./setup.sh && source .venv/bin/activate
-uvicorn server.main:app --port 8000      # then open http://localhost:8000
-```
+![Coverage of Barnard's Star](docs/images/2-coverage.png)
+
+**What changed**: Aug 2026 compared with Aug 2025. The star has moved north, and SphereX explains it: 8.5″ ± 1.8″
+measured, 10.3″ predicted by Gaia, seen in 6 of 6 detectors.
+
+![What changed on Barnard's Star](docs/images/3-changes.png)
+
+**The colour fingerprint**: one star measured in 354 photos across SPHEREx's colours. All three visits overlap,
+so its brightness didn't change.
+
+![Spectrum of a star near Barnard's Star](docs/images/4-spectrum.png)
 
 ## Credits
 
@@ -72,4 +101,4 @@ Also used: 2MASS and DSS colour maps, the Sesame name resolver (CDS), Aladin Lit
 Astropy, NumPy, SciPy, FastAPI, Uvicorn, certifi and the Public Sans typeface. Inspired by WiseView, Backyard
 Worlds and IRSA's SPHEREx Data Explorer.
 
-Not affiliated with or endorsed by NASA. Licensed under Apache 2.0 (see [LICENSE](LICENSE)).
+Licensed under Apache 2.0 (see [LICENSE](LICENSE)).

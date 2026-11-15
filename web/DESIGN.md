@@ -20,7 +20,8 @@ brighter/bolder text. Data colours are muted but distinguishable.
 | `--text` | `#DCE3EC` | text (secondary 64%, tertiary 44%) |
 | `--accent` | `#9DB2C8` | thin active-state lines and focus ring only, never a fill |
 | `--target` | `#C5D0DC` | the searched position on the sky |
-| `--brighter` / `--dimmer` | `#E0443F` / `#2EA8BF` | changes only: red = now/brighter, cyan = before/fainter (the one place strong colour is used) |
+| `--brighter` / `--dimmer` | `#39FF14` / `#8F008F` | brightness changes only: green = got brighter, purple = got fainter (Ethan's choice) |
+| `--ghost-change` | `#FF0000` | ghost view only: what's new in the current frame, its rings and arrow (Ethan's choice) |
 
 Visits: `#7F9DBB #7FA89F #B08C9B #B3A47E #9C98B8 #B48E7C`. Wavelength dots: a muted blue→red ramp.
 

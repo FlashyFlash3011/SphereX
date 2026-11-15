@@ -22,7 +22,7 @@ uniform int u_n;
 uniform bool u_diff;     // layer holds change significance; u_base holds the plain image underneath
 uniform int u_base;
 uniform float u_thr;     // only colour changes at least this many times the noise
-uniform int u_ghost;     // 0 = off, 1 = plain ghost, 2 = coloured (earlier frame cyan, current red)
+uniform int u_ghost;     // 0 = off, 1 = plain ghost, 2 = coloured (what's new in red, earlier frame faint grey)
 uniform int u_ghostLayer;
 uniform float u_ghostAlpha;
 in vec2 v_uv;
@@ -61,12 +61,12 @@ void main() {
     return;
   }
   if (u_diff) {
-    // Faint sky underneath for orientation; red = got brighter, cyan = got fainter.
+    // Faint sky underneath for orientation; green = got brighter, purple = got fainter.
     float b = fetchAt(ivec2(floor(xy + 0.5)), u_base);
     float g = b < -1e29 ? 0.5 : mix(0.5, shade(b), 0.45);
     vec3 col = vec3(g);
     float a = clamp((abs(v) - u_thr) / u_thr, 0.0, 1.0);
-    if (abs(v) >= u_thr) col = mix(col, v > 0.0 ? vec3(0.878, 0.267, 0.247) : vec3(0.180, 0.659, 0.749), 0.6 + 0.4 * a);   // red / cyan
+    if (abs(v) >= u_thr) col = mix(col, v > 0.0 ? vec3(0.224, 1.0, 0.078) : vec3(0.561, 0.0, 0.561), 0.6 + 0.4 * a);   // brighter #39FF14 / fainter #8F008F
     o = vec4(col, 1.0);
     return;
   }
@@ -76,10 +76,13 @@ void main() {
     if (u_ghost == 1) {                       // plain: the earlier frame shows faintly through
       float t = max(tc, tg * u_ghostAlpha);
       o = vec4(vec3(u_invert ? 1.0 - t : t), 1.0);
-    } else {                                  // coloured: red = now, cyan = before, unchanged = white/grey
-      float tb = mix(tc, tg, u_ghostAlpha);
-      vec3 c = vec3(tc, tb, tb);
-      o = vec4(u_invert ? vec3(1.0) - vec3(tb, tc, tc) : c, 1.0);
+    } else {                                  // coloured: what's new now in pure red, the earlier frame as a faint grey ghost
+      float tg2 = tg * u_ghostAlpha;
+      float same = min(tc, tg2);              // light in both frames: unchanged
+      float now = max(tc - tg2, 0.0);         // light only in the current frame: red (#FF0000)
+      float before = max(tg2 - tc, 0.0) * 0.5; // light only in the earlier frame: faint grey
+      float grey = same + before;
+      o = vec4(u_invert ? vec3(1.0 - grey, 1.0 - grey - now, 1.0 - grey - now) : vec3(grey + now, grey, grey), 1.0);
     }
     return;
   }

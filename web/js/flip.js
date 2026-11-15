@@ -142,7 +142,7 @@ function findChanges(S, n, thr, minSupport = 1) {
 }
 
 // What the rings likely mean: a dimmer spot with a brighter spot right next to it is one thing that moved
-// (from the cyan spot to the red one). Anything left is "brighter or new" / "fainter or gone".
+// (from the fainter spot to the brighter one). Anything left is "brighter or new" / "fainter or gone".
 const MOVE_PAIR_PX = 4.5;
 function interpret(changes) {
   const faded = changes.filter((c) => c.s < 0), brightened = changes.filter((c) => c.s > 0), used = new Set(), moves = [];
@@ -421,7 +421,7 @@ export class Flip {
     this.ghostCmp = gi >= 0 ? this.ghostComparison(gi) : null;
     this.book.set({ layer: this.at, base: this.views.length + this.at,
                     ghost: gi >= 0 ? (this.ghostStyle === "plain" ? 1 : 2) : 0, ghostLayer: Math.max(gi, 0), ghostAlpha: this.ghostAlpha });
-    if (gi >= 0) $("flip-sub").textContent = `${v.sub}. Ghost: ${this.views[gi].label} (${this.ghostStyle === "plain" ? "faint" : "cyan"} = before${this.ghostStyle === "plain" ? "" : ", red = now"})`;
+    if (gi >= 0) $("flip-sub").textContent = `${v.sub}. Ghost: ${this.views[gi].label} (faint = before${this.ghostStyle === "plain" ? "" : ", red = what's new now"})`;
     this.renderStrip();
     this.renderChanges();
     this.drawMarker();
@@ -597,7 +597,7 @@ export class Flip {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, w, h);
     const view = this.ghostCmp || this.views[this.at];
-    if (view && view.changes && this.run && (this.ghostCmp ? this.ghostMarks : true)) this.drawChanges(ctx, w, h, view.changes, view.found);
+    if (view && view.changes && this.run && (this.ghostCmp ? this.ghostMarks : true)) this.drawChanges(ctx, w, h, view.changes, view.found, !!this.ghostCmp);
     const card = view && view.cards && view.cards[this.selectedCard];
     if (card && this.run) {   // the change chosen in the list: a larger thin ring
       const n = this.run.n, zoom = this.book.state.zoom;
@@ -628,21 +628,21 @@ export class Flip {
   }
 
   // Rings around clear changes. Image row 0 is the south edge, so flip y for the screen.
-  drawChanges(ctx, w, h, changes, found) {
+  drawChanges(ctx, w, h, changes, found, ghost = false) {
     const n = this.run.n, zoom = this.book.state.zoom, px = (w / n) * zoom, r = Math.max(7, px * 2.2);
     const at = (c) => [(0.5 + ((c.x + 0.5) / n - 0.5) * zoom) * w, (0.5 + ((1 - (c.y + 0.5) / n) - 0.5) * zoom) * h];
     ctx.lineWidth = 2;
     for (const c of changes) {
       const [sx, sy] = at(c);
       if (sx < 0 || sy < 0 || sx > w || sy > h) continue;
-      ctx.strokeStyle = c.s > 0 ? "#E0443F" : "#2EA8BF";
+      ctx.strokeStyle = ghost ? "#FF0000" : c.s > 0 ? "#39FF14" : "#8F008F";
       ctx.beginPath();
       ctx.arc(sx, sy, r, 0, Math.PI * 2);
       ctx.stroke();
     }
-    // "Moved": an arrow from where it was (cyan) to where it is now (red).
+    // "Moved": an arrow from where it was to where it is now.
     if (!found) return;
-    ctx.strokeStyle = ctx.fillStyle = "#DCE3EC";
+    ctx.strokeStyle = ctx.fillStyle = ghost ? "#FF0000" : "#DCE3EC";
     ctx.lineWidth = 2;
     for (const m of found.moves) {
       const [x1, y1] = at(m.from), [x2, y2] = at(m.to);

@@ -1,0 +1,85 @@
+{
+ "targets": {
+  "barnard": {
+   "slug": "barnard",
+   "name": "Barnard's Star",
+   "aliases": [
+    "barnard",
+    "barnards star",
+    "barnard's star",
+    "gj 699"
+   ],
+   "kind": "mover",
+   "ra": 269.446075,
+   "dec": 4.770708,
+   "size": 64,
+   "photos": 358,
+   "frames": 358,
+   "built_utc": "2026-11-15T09:56Z"
+  },
+  "r-dra": {
+   "slug": "r-dra",
+   "name": "R Draconis",
+   "aliases": [
+    "r dra",
+    "r draconis"
+   ],
+   "kind": "variable",
+   "ra": 248.16722,
+   "dec": 66.755026,
+   "size": 64,
+   "photos": 539,
+   "frames": 538,
+   "built_utc": "2026-11-15T09:56Z"
+  },
+  "wise-0855": {
+   "slug": "wise-0855",
+   "name": "WISE 0855-0714",
+   "aliases": [
+    "wise 0855",
+    "wise 0855-0714",
+    "wise0855",
+    "w0855"
+   ],
+   "kind": "mover",
+   "ra": 133.757655,
+   "dec": -7.242096,
+   "size": 64,
+   "photos": 258,
+   "frames": 258,
+   "built_utc": "2026-11-15T09:57Z"
+  },
+  "eps-indi-b": {
+   "slug": "eps-indi-b",
+   "name": "Epsilon Indi B",
+   "aliases": [
+    "epsilon indi b",
+    "eps ind b",
+    "eps indi b",
+    "epsilon indi"
+   ],
+   "kind": "mover",
+   "ra": 331.098413,
+   "dec": -56.801262,
+   "size": 64,
+   "photos": 459,
+   "frames": 458,
+   "built_utc": "2026-11-15T17:30Z"
+  },
+  "rw-aur": {
+   "slug": "rw-aur",
+   "name": "RW Aurigae",
+   "aliases": [
+    "rw aur",
+    "rw aurigae"
+   ],
+   "kind": "variable",
+   "ra": 76.95609,
+   "dec": 30.401122,
+   "size": 64,
+   "photos": 335,
+   "frames": 334,
+   "built_utc": "2026-11-15T17:31Z"
+  }
+ }
+}

@@ -213,6 +213,7 @@ export class Flip {
     this.render();
     this.status("Starting… the server cuts your patch out of every SPHEREx photo of this spot.");
     if (!this.book.ok) { this.empty("This browser can't draw the images (it needs WebGL 2). Try a current Chrome, Firefox or Safari."); return; }
+    if (place.prepared && size === place.prepared.size && await this.openPrepared(run, place.prepared)) return;
     try {
       const q = new URLSearchParams({ ra: place.ra.toFixed(6), dec: place.dec.toFixed(6), size: String(size),
                                       first: String(this.band.kind === "all" ? 0 : this.band.kind === "det" ? this.band.det : Math.floor(this.band.ch / 17) + 1) });
@@ -227,6 +228,36 @@ export class Flip {
       await this.follow(run);
     } catch (err) {
       if (this.run === run) { this.status(err.message); this.empty(err.message); }
+    }
+  }
+
+  // A target prepared in advance: everything comes from files in the website, nothing from the server.
+  async openPrepared(run, t) {
+    try {
+      const base = `data/${t.slug}/`;
+      const [st, bin, g] = await Promise.all([
+        fetch(base + "stack.json").then((r) => { if (!r.ok) throw new Error(); return r.json(); }),
+        fetch(base + "frames.bin").then((r) => { if (!r.ok) throw new Error(); return r.arrayBuffer(); }),
+        fetch(base + "gaia.json").then((r) => (r.ok ? r.json() : null)).catch(() => null),
+      ]);
+      if (this.run !== run) return true;
+      const n = st.summary.n, n2 = n * n;
+      if (bin.byteLength !== st.frames.length * n2 * 2) throw new Error("incomplete");
+      run.id = `prepared:${t.slug}`;
+      run.n = n;
+      run.exposures = st.summary.exposures;
+      run.total = st.summary.total;
+      run.missing = st.missing || [];
+      st.frames.forEach((f, k) => { run.meta.set(f.i, f); run.px.set(f.i, decode(new Uint16Array(bin, k * n2 * 2, n2))); });
+      run.gaia = g ? g.stars : null;
+      run.gaiaState = g ? "ok" : "failed";
+      run.done = true;
+      this.fillBands();
+      this.rebuild();
+      this.status(`Prepared in advance: ${st.frames.length} photos, snapshot of ${t.built_utc.slice(0, 10)}. Search the coordinates for the newest photos.`);
+      return true;
+    } catch {
+      return false;   // fall back to the live server
     }
   }
 

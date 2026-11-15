@@ -6,6 +6,29 @@ import { Results } from "./results.js";
 import { Flip } from "./flip.js";
 import { Spectrum } from "./spectrum.js";
 
+// The challenge's five test targets are prepared in advance as files inside the website (web/data/),
+// so they load instantly and work even when NASA's archive or our server is down.
+const prepared = fetch("data/targets.json").then((r) => (r.ok ? r.json() : { targets: {} })).catch(() => ({ targets: {} }));
+async function preparedTarget(text) {
+  const key = text.toLowerCase().replace(/[’]/g, "'").split(/\s+/).filter(Boolean).join(" ");
+  const { targets } = await prepared;
+  return Object.values(targets).find((t) => key === t.slug || key === t.name.toLowerCase() || t.aliases.includes(key)) || null;
+}
+
+// Photo list of a prepared target, with the search panel's filters applied here (same shape as /api/search).
+async function preparedSearch(t, dets, from, to) {
+  const all = await (await fetch(`data/${t.slug}/search.json`)).json();
+  const lo = from || "0000", hi = to ? `${to}T99` : "9999";
+  const photos = all.photos.filter((p) => dets.includes(String(p.det)) && p.utc >= lo && p.utc <= hi);
+  const visits = new Map();
+  for (const p of photos) {
+    const v = visits.get(p.visit) || { visit: p.visit, start: p.utc, end: p.utc, n: 0 };
+    v.n++; if (p.utc < v.start) v.start = p.utc; if (p.utc > v.end) v.end = p.utc;
+    visits.set(p.visit, v);
+  }
+  return { ...all, total: photos.length, photos, visits: [...visits.values()].sort((a, b) => a.visit - b.visit) };
+}
+
 const flip = new Flip();
 const spectrum = new Spectrum(flip);
 flip.onUpdate = () => { if (spectrum.visible()) spectrum.update(); };
@@ -319,14 +342,21 @@ async function search() {
   $("search-go").disabled = true;
   note.textContent = "Looking up…";
   try {
+    let ready = null;
     if (text && !(chosen && fromClickText === text)) {
-      const place = await resolve(text);
+      ready = await preparedTarget(text);
+      const place = ready || await resolve(text);
       choose(place.ra, place.dec, place.name, false);
+      if (ready) chosen.prepared = ready;
     }
     const { q, dets } = filters();
     if (!dets.length) throw new Error("Choose at least one detector under Colours.");
+    let data = null;
+    if (chosen.prepared) {
+      try { data = await preparedSearch(chosen.prepared, dets, $("when-from").value, $("when-to").value); } catch { data = null; }
+    }
+    if (!data) {
     note.textContent = "Asking NASA's archive for every photo of this spot…";
-    let data;
     try {
       data = await getJson(`${API}/api/search?${q}`);
     } catch (first) {
@@ -336,6 +366,7 @@ async function search() {
       await new Promise((r) => setTimeout(r, 20000));
       note.textContent = "Asking NASA's archive again…";
       data = await getJson(`${API}/api/search?${q}`);
+    }
     }
     note.textContent = "";
     openResults(data);

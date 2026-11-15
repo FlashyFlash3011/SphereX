@@ -144,29 +144,29 @@
         <fieldset class="setting">
           <legend class="setting-label">Each frame shows</legend>
           <div class="segmented wide" id="flip-mode">
-            <button type="button" data-mode="visits" aria-pressed="true">One visit, added up</button>
-            <button type="button" data-mode="photos" aria-pressed="false">One photo</button>
+            <button type="button" data-mode="visits" aria-pressed="false">One visit, added up</button>
+            <button type="button" data-mode="photos" aria-pressed="true">One photo</button>
           </div>
         </fieldset>
         <fieldset class="setting">
           <legend class="setting-label">Compare visits</legend>
           <div class="segmented wide" id="flip-compare">
-            <button type="button" data-compare="off" aria-pressed="true">Off</button>
+            <button type="button" data-compare="off" aria-pressed="false">Off</button>
             <button type="button" data-compare="first" aria-pressed="false">With the first</button>
-            <button type="button" data-compare="prev" aria-pressed="false">With the previous</button>
+            <button type="button" data-compare="prev" aria-pressed="true">With the previous</button>
           </div>
           <span class="setting-help">Shows only what changed between visits: green got brighter, purple got fainter.</span>
         </fieldset>
         <fieldset class="setting">
           <legend class="setting-label">Ghost of an earlier frame</legend>
           <div class="segmented wide" id="flip-ghost">
-            <button type="button" data-ghost="off" aria-pressed="true">Off</button>
-            <button type="button" data-ghost="prev" aria-pressed="false">Previous</button>
+            <button type="button" data-ghost="off" aria-pressed="false">Off</button>
+            <button type="button" data-ghost="prev" aria-pressed="true">Previous</button>
             <button type="button" data-ghost="first" aria-pressed="false">First</button>
           </div>
           <span class="setting-help">Lays an earlier frame under the current one: what's new shows in red, the earlier frame as a faint ghost. With Compare on, the ghost is the visit being compared with.</span>
         </fieldset>
-        <div class="setting" id="ghost-options" hidden>
+        <div class="setting" id="ghost-options">
           <div class="segmented wide" id="flip-ghost-style">
             <button type="button" data-style="colour" aria-pressed="true">Coloured</button>
             <button type="button" data-style="plain" aria-pressed="false">Plain</button>
@@ -175,7 +175,7 @@
           <input type="range" id="flip-ghost-alpha" min="0.2" max="1" step="0.05" value="0.7">
           <label class="toggle"><input type="checkbox" id="flip-ghost-marks" checked> Mark clear changes</label>
         </div>
-        <label class="setting" id="thr-setting" hidden>
+        <label class="setting" id="thr-setting">
           <span class="setting-label">How sure must a change be <output id="flip-thr-out">5×</output></span>
           <input type="range" id="flip-thr" min="3" max="10" step="0.5" value="5">
           <span class="setting-help">5× means the change is five times bigger than the noise in that spot. Random noise almost never does that.</span>
@@ -203,7 +203,7 @@
           </div>
         </fieldset>
         <fieldset class="setting checks">
-          <label class="toggle"><input type="checkbox" id="flip-invert" checked> Invert (dark stars on white, like WiseView)</label>
+          <label class="toggle"><input type="checkbox" id="flip-invert"> Invert (dark stars on white, like WiseView)</label>
           <label class="toggle"><input type="checkbox" id="flip-smooth"> Smooth pixels (helps see tiny shifts)</label>
           <label class="toggle"><input type="checkbox" id="flip-marker" checked> Mark the search position</label>
         </fieldset>

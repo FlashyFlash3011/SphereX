@@ -183,10 +183,11 @@ export class Flip {
     this.at = 0;
     this.timer = null;
     this.band = { kind: "det", det: DEFAULT_DET };
-    this.mode = "visits";
-    this.compare = "off";
+    this.mode = "photos";       // defaults chosen for the presentation (15 Nov): one photo per frame,
+    this.compare = "prev";      // compared with the previous visit, with the ghost on
+
     this.thr = 5;
-    this.ghost = "off";
+    this.ghost = "prev";
     this.ghostStyle = "colour";
     this.ghostAlpha = 0.7;
     this.ghostMarks = true;
@@ -396,11 +397,14 @@ export class Flip {
         // A single photo is noisy and can hold cosmic-ray hits (usually one pixel): require a change to cover
         // at least 3 neighbouring pixels, as starlight always does.
         const S = significance(A, B, n2), changes = findChanges(S, run.n, this.thr, 2), found = interpret(changes);
+        const refList = members.filter((g) => g.pass === refVisit && g.channel === f.channel);
+        const refYear = 2000 + (refList.reduce((t, g) => t + g.mjd, 0) / refList.length - 51544.5) / 365.25;
+        const inputs = { A, B, S, refVisit, nowVisit: f.pass, years: [refYear, 2000 + (f.mjd - 51544.5) / 365.25] };
         views.push({
           title: dayText(f.utc),
           sub: `Photo at ${f.lam_um.toFixed(3)} µm (visit ${f.pass + 1}) compared with visit ${refVisit + 1} in the same colour: ${describe(found)}`,
           label: dayText(f.utc), small: `${f.lam_um.toFixed(2)} µm`,
-          data: S, base: px, ref: A.mean, changes, found,
+          data: S, base: px, ref: A.mean, changes, found, inputs,
         });
       }
       this.noCompare = visits.length < 2;

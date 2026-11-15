@@ -101,7 +101,7 @@ export class Flipbook {
     this.ok = !!this.gl;
     this.n = 0;
     this.layers = 0;
-    this.state = { layer: -1, cuts: [0, 1], zoom: 1, soft: true, invert: true, smooth: false, diff: false, base: 0, thr: 5, ghost: 0, ghostLayer: 0, ghostAlpha: 0.7 };
+    this.state = { layer: -1, cuts: [0, 1], zoom: 1, soft: true, invert: false, smooth: false, diff: false, base: 0, thr: 5, ghost: 0, ghostLayer: 0, ghostAlpha: 0.7 };
     if (!this.ok) return;
     const gl = this.gl;
     const prog = gl.createProgram();

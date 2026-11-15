@@ -173,6 +173,7 @@ input[type="date"] { color-scheme: dark; }
 .search.collapsed .panel-foot { margin-top: 0; }
 .search-note { color: var(--text-2); font-size: var(--text-xs); }
 .search-note.bad { color: var(--error); }
+.inline-link { padding: 0; background: none; border: 0; color: var(--text); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; font-size: inherit; }
 
 .zoom {
   position: absolute; right: var(--gap-4); top: 50%; transform: translateY(-50%); z-index: 2;

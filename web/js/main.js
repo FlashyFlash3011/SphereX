@@ -248,14 +248,20 @@ $("q").addEventListener("input", () => {
   else echo("Press Search to look up this name.");
 });
 
-for (const name of EXAMPLES) {
-  const li = document.createElement("li"), b = document.createElement("button");
-  b.type = "button";
-  b.textContent = name;
-  b.addEventListener("click", () => { $("q").value = name; search(); });
-  li.append(b);
-  $("examples").append(li);
-}
+// Example places; the ones prepared in advance (work even when NASA's archive is down) come first.
+prepared.then(({ targets }) => {
+  const ready = new Set(Object.values(targets).map((t) => t.name));
+  const names = [...EXAMPLES].sort((a, b) => Number(ready.has(b)) - Number(ready.has(a)));
+  for (const name of names) {
+    const li = document.createElement("li"), b = document.createElement("button");
+    b.type = "button";
+    b.textContent = name;
+    if (ready.has(name)) b.title = "Prepared in advance: loads instantly";
+    b.addEventListener("click", () => { $("q").value = name; search(); });
+    li.append(b);
+    $("examples").append(li);
+  }
+});
 
 // ---- search options --------------------------------------------------------------------
 for (const [n, lo, hi] of DETECTORS) {
@@ -373,9 +379,28 @@ async function search() {
   } catch (err) {
     note.textContent = err.message;
     note.classList.add("bad");
+    if (/archive/i.test(err.message)) offerPrepared(note);
   } finally {
     $("search-go").disabled = false;
   }
+}
+
+// NASA's archive is down: offer the places that work anyway.
+async function offerPrepared(note) {
+  const { targets } = await prepared;
+  const list = Object.values(targets);
+  if (!list.length) return;
+  note.append(document.createTextNode(" These places are prepared and work anyway: "));
+  list.forEach((t, k) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "inline-link";
+    b.textContent = t.name;
+    b.addEventListener("click", () => { $("q").value = t.name; search(); });
+    note.append(b);
+    if (k < list.length - 1) note.append(document.createTextNode(", "));
+  });
+  note.append(document.createTextNode("."));
 }
 
 function openResults(data) {

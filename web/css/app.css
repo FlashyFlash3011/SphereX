@@ -249,7 +249,7 @@ body.flip-mode .toolbar .plane, body.flip-mode .toolbar .select, body.flip-mode 
 
 .flip-stage {
   position: absolute; z-index: 1; top: 0; bottom: 0; left: var(--results-w); right: 0;
-  display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto; background: var(--space);
+  display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto auto; background: var(--space);
 }
 .flip-head { padding: var(--gap-4) var(--gap-5) var(--gap-2); }
 .flip-title { font-size: 40px; font-weight: 600; line-height: 1.1; letter-spacing: -.01em; }
@@ -314,6 +314,26 @@ body.spec-mode .toolbar .plane, body.spec-mode .toolbar .select, body.spec-mode 
   white-space: nowrap;
 }
 .flip-legend .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; }
+
+/* ---- what changed (quiet list under the flipbook image) --------------------------- */
+.changes { margin: 0 var(--gap-5) var(--gap-2); border-top: 1px solid var(--line); max-height: 176px; overflow-y: auto; }
+.changes-title { font-size: var(--text-s); font-weight: 600; padding: var(--gap-2) 0 var(--gap-1); position: sticky; top: 0; background: var(--space); }
+.changes-meta { font-weight: 400; color: var(--text-3); font-size: var(--text-xs); margin-left: var(--gap-2); }
+.change-list { display: grid; }
+.change-item { border-bottom: 1px solid var(--line); }
+.change-row {
+  display: flex; align-items: baseline; gap: var(--gap-2); width: 100%; padding: 6px 0;
+  background: none; border: 0; color: var(--text-2); text-align: left; cursor: pointer; font-size: var(--text-xs);
+}
+.change-row:hover, .change-item.open .change-row { color: var(--text); }
+.change-row .ring { flex: none; width: 9px; height: 9px; border-radius: 50%; border: 1.5px solid var(--text); transform: translateY(1px); }
+.change-row .ring.up { border-color: var(--brighter); }
+.change-row .ring.down { border-color: var(--dimmer); }
+.change-row .what { flex: 1; color: var(--text); font-size: var(--text-s); }
+.change-row .conf { flex: none; color: var(--text-3); }
+.change-evidence { display: none; padding: 0 0 var(--gap-2) 17px; color: var(--text-2); font-size: var(--text-xs); line-height: 1.55; }
+.change-item.open .change-evidence { display: block; }
+.change-evidence li { list-style: none; }
 
 .legend { top: var(--gap-4); right: var(--gap-4); width: 230px; padding: var(--gap-3) var(--gap-4); display: grid; gap: var(--gap-2); }
 .legend h2 { font-size: var(--text-s); font-weight: 600; }

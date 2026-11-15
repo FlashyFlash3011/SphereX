@@ -19,7 +19,8 @@ import certifi
 ALLOWED_HOSTS = frozenset({
     "irsa.ipac.caltech.edu",
     "nasa-irsa-spherex.s3.us-east-1.amazonaws.com",
-    "vizier.cfa.harvard.edu",  # Sesame name resolver
+    "vizier.cfa.harvard.edu",  # Sesame name resolver and the Gaia catalogue (VizieR)
+    "vizier.idia.ac.za",       # VizieR mirror, fallback for the Gaia catalogue
 })
 S3_BASE = "https://nasa-irsa-spherex.s3.us-east-1.amazonaws.com/"
 TIMEOUT_S = 30

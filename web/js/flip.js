@@ -2,6 +2,7 @@
 // band, and looped like WiseView. Cut-outs stream in from the server; frames sharpen as they arrive.
 import { API } from "./config.js";
 import { Flipbook, NO_DATA } from "./flipbook.js";
+import { interpretMove, interpretSpot } from "./interpret.js";
 
 const $ = (id) => document.getElementById(id);
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -53,8 +54,13 @@ function imageNoise(img) {
   return 1.4826 * median(v.map((x) => Math.abs(x - m))) || 1e-3;
 }
 
+// The spread between photos is a good noise estimate only with enough photos: with 3 it can come out far too
+// small by chance (measured 15 Nov: WISE 0855's 3-photo visit gave 19 false changes).
+const MIN_PHOTOS_FOR_SPREAD = 5;
+const MIN_VISIT_PHOTOS = 8;   // fewer photos in the chosen band: the visit is left out of comparisons
+
 // One visit, added up: the mean image, and how uncertain each pixel of that mean is.
-// With 3 or more photos, the uncertainty comes from how much the photos disagree (measured, not assumed);
+// With 5 or more photos, the uncertainty comes from how much the photos disagree (measured, not assumed);
 // that also absorbs small alignment errors, which makes the comparison cautious.
 function visitStats(list, size) {
   const sum = new Float64Array(size), sq = new Float64Array(size), count = new Uint16Array(size);
@@ -65,11 +71,11 @@ function visitStats(list, size) {
   for (let k = 0; k < size; k++) {
     const n = count[k];
     if (!n) { err[k] = NO_DATA; continue; }
-    if (n >= 3) {
+    if (n >= MIN_PHOTOS_FOR_SPREAD) {
       const variance = Math.max((sq[k] - (sum[k] * sum[k]) / n) / (n - 1), 0);
       err[k] = Math.max(Math.sqrt(variance / n), 0.5 * floor);
     } else {
-      err[k] = floor;
+      err[k] = floor;   // too few photos to trust their spread: use the noise measured across the image
     }
   }
   return { mean, err, n: list.length };
@@ -210,6 +216,7 @@ export class Flip {
       if (this.run !== run) return;
       run.id = s.id;
       run.exposures = s.exposures;
+      this.loadGaia(run, place, size);
       run.total = s.total;
       this.fillBands();
       if (!s.total) { this.empty("SPHEREx has no photos of this spot yet."); this.status(""); return; }
@@ -253,6 +260,21 @@ export class Flip {
     }
   }
 
+  async loadGaia(run, place, size) {
+    run.gaia = null;
+    run.gaiaState = "loading";
+    const radius = Math.min(0.3, ((size * 6.15) / 3600) * 0.75 + 0.01);   // covers the patch corners
+    try {
+      const g = await getJson(`${API}/api/gaia?ra=${place.ra.toFixed(6)}&dec=${place.dec.toFixed(6)}&radius=${radius.toFixed(3)}`);
+      if (this.run !== run) return;
+      run.gaia = g.stars;
+      run.gaiaState = "ok";
+    } catch {
+      if (this.run === run) run.gaiaState = "failed";
+    }
+    if (this.run === run) { for (const v of this.views) v.cards = null; this.renderChanges(); }
+  }
+
   scheduleRebuild() {
     if (this._rebuildTimer) return;
     this._rebuildTimer = setTimeout(() => { this._rebuildTimer = null; this.rebuild(); }, 350);
@@ -286,8 +308,12 @@ export class Flip {
           label: `Visit ${g.v + 1}`, small: g.range, data: g.stats.mean,
         }));
       } else {
-        for (let k = 1; k < groups.length; k++) {
-          const ref = this.compare === "first" ? groups[0] : groups[k - 1], now = groups[k];
+        // A visit with very few photos in this band can't be compared reliably (it makes false changes in every
+        // detector at once). Use only visits with enough photos; say which ones were left out.
+        const usable = groups.filter((g) => g.list.length >= MIN_VISIT_PHOTOS);
+        this.smallVisits = groups.filter((g) => g.list.length < MIN_VISIT_PHOTOS);
+        for (let k = 1; k < usable.length; k++) {
+          const ref = this.compare === "first" ? usable[0] : usable[k - 1], now = usable[k];
           // The colour trap: a detector spans a range of colours, and stars differ in brightness across it.
           // Compare only photos taken in colours (channels) that BOTH visits have.
           const shared = new Set(ref.list.map((f) => f.channel).filter((c) => now.list.some((f) => f.channel === c)));
@@ -301,15 +327,18 @@ export class Flip {
           const A = visitStats(refList.map((f) => run.px.get(f.i)), n2), B = visitStats(nowList.map((f) => run.px.get(f.i)), n2);
           const S = significance(A, B, n2);
           const changes = findChanges(S, run.n, this.thr), found = interpret(changes);
+          const meanYear = (list) => 2000 + (list.reduce((t, f) => t + f.mjd, 0) / list.length - 51544.5) / 365.25;
+          const inputs = { A, B, S, refList, nowList, refVisit: ref.v, nowVisit: now.v, years: [meanYear(refList), meanYear(nowList)] };
           views.push({
             title: `${now.range} vs ${ref.range}`,
-            sub: `Visit ${now.v + 1} compared with visit ${ref.v + 1} (the ${shared.size} colour${shared.size === 1 ? "" : "s"} both share): ${describe(found)}`,
+            sub: `Visit ${now.v + 1} compared with visit ${ref.v + 1} (the ${shared.size} colour${shared.size === 1 ? "" : "s"} both share): ${describe(found)}`
+              + (this.smallVisits.length ? `. Left out: visit ${this.smallVisits.map((g) => g.v + 1).join(", ")} (too few photos in this band)` : ""),
             found,
             label: `Visit ${now.v + 1} vs ${ref.v + 1}`, small: now.range,
-            data: S, base: B.mean, changes,
+            data: S, base: B.mean, changes, inputs,
           });
         }
-        this.noCompare = groups.length < 2;
+        this.noCompare = usable.length < 2;
       }
     } else if (this.compare === "off") {
       views = members.map((f, k) => ({
@@ -380,7 +409,7 @@ export class Flip {
     if (!v) {
       if (this.run && this.run.id) {
         if (this.compare !== "off" && this.noCompare && this.run.meta.size) {
-          this.empty("Only one visit has photos in this colour band so far, so there's nothing to compare yet. Pick another band, or wait for more photos.");
+          this.empty("Fewer than two visits have enough photos in this colour band (at least 8 each) to compare reliably. Pick a wider band, such as All colours.");
         } else {
           this.empty(this.run.done ? "No photos in this colour band. Pick another band." : "Loading the first photos of this colour band…");
         }
@@ -393,6 +422,7 @@ export class Flip {
     $("flip-sub").textContent = v.sub;
     this.book.set({ layer: this.at, base: this.views.length + this.at });
     this.renderStrip();
+    this.renderChanges();
     this.drawMarker();
   }
 
@@ -424,6 +454,96 @@ export class Flip {
     });
   }
 
+  // ---- "What changed": verdicts for each change in the current comparison ---------------
+  cardsFor(view) {
+    if (view.cards || !view.inputs || !view.found) return view.cards;
+    const run = this.run, n = run.n, n2 = n * n, { A, B, S, refVisit, nowVisit, years } = view.inputs;
+    // The same comparison repeated separately in each of the 6 detectors, whatever band is on screen
+    // (for "seen independently in k of n"), each on the colours both visits share in that detector.
+    const perDet = [], frames = [...run.meta.values()];
+    for (let d = 1; d <= 6; d++) {
+      const a0 = frames.filter((f) => f.det === d && f.pass === refVisit), b0 = frames.filter((f) => f.det === d && f.pass === nowVisit);
+      const shared = new Set(a0.map((f) => f.channel).filter((c) => b0.some((f) => f.channel === c)));
+      const a = a0.filter((f) => shared.has(f.channel)), b = b0.filter((f) => shared.has(f.channel));
+      if (a.length && b.length) {
+        perDet.push({ det: d, S: significance(visitStats(a.map((f) => run.px.get(f.i)), n2), visitStats(b.map((f) => run.px.get(f.i)), n2), n2) });
+      }
+    }
+    const all = [...run.meta.values()].map((f) => ({ img: run.px.get(f.i), lam: f.lam_um }));
+    const ctx = { n, place: this.place, stars: run.gaia || [], A, B, S, years, perDet, photos: { all }, thr: this.thr };
+    const f = view.found;
+    view.cards = [
+      ...f.moves.map((m) => interpretMove(ctx, m)),
+      ...f.brighter.map((c) => interpretSpot(ctx, c)),
+      ...f.fainter.map((c) => interpretSpot(ctx, c)),
+    ];
+    const order = { "known-mover": 0, candidate: 1, mismatch: 2, variable: 3, appeared: 4, vanished: 5, unexplained: 6, artefact: 7 };
+    view.cards.sort((p, q) => order[p.kind] - order[q.kind]);
+    return view.cards;
+  }
+
+  renderChanges() {
+    const box = $("flip-changes"), list = $("change-list"), view = this.views[this.at];
+    const show = !!(view && view.inputs);
+    box.hidden = !show;
+    if (!show) return;
+    const cards = this.cardsFor(view) || [];
+    const gaia = this.run.gaiaState === "ok" ? `checked against ${this.run.gaia.length.toLocaleString("en-US")} Gaia stars`
+      : this.run.gaiaState === "loading" ? "checking Gaia…" : "Gaia unavailable right now";
+    const solid = cards.filter((c) => c.conf !== "weak").length;
+    $("changes-meta").textContent = `${solid ? `${solid} clear` : "nothing clear"}, ${gaia}`;
+    const key = `${this.at}:${cards.length}:${this.run.gaiaState}:${!!this.showWeak}`;
+    if (list.dataset.key === key) return;
+    list.dataset.key = key;
+    list.replaceChildren();
+    this.selectedCard = -1;
+    const strong = cards.filter((c) => c.conf !== "weak"), weak = cards.filter((c) => c.conf === "weak");
+    const showWeak = this.showWeak && weak.length;
+    [...strong, ...(showWeak ? weak : [])].forEach((c) => {
+      const k = cards.indexOf(c);
+      const li = document.createElement("li"), row = document.createElement("button");
+      li.className = "change-item";
+      row.type = "button";
+      row.className = "change-row";
+      row.setAttribute("aria-expanded", "false");
+      const ring = document.createElement("span"), what = document.createElement("span"), conf = document.createElement("span");
+      ring.className = `ring ${c.sign > 0 ? "up" : c.sign < 0 ? "down" : ""}`;   // movers: neutral ring
+      what.className = "what";
+      what.textContent = c.title;
+      conf.className = "conf";
+      conf.textContent = `${c.conf} evidence`;
+      row.append(ring, what, conf);
+      const ev = document.createElement("ul");
+      ev.className = "change-evidence";
+      for (const line of c.lines) { const l = document.createElement("li"); l.textContent = line; ev.append(l); }
+      row.addEventListener("click", () => {
+        const open = !li.classList.contains("open");
+        for (const o of list.children) { o.classList.remove("open"); o.firstChild.setAttribute("aria-expanded", "false"); }
+        li.classList.toggle("open", open);
+        row.setAttribute("aria-expanded", String(open));
+        this.selectedCard = open ? k : -1;
+        this.pause();
+        this.drawMarker();
+      });
+      li.append(row, ev);
+      list.append(li);
+    });
+    if (weak.length) {   // weak signals stay folded into one quiet line unless asked for
+      const li = document.createElement("li"), b = document.createElement("button");
+      li.className = "change-item";
+      b.type = "button";
+      b.className = "change-row";
+      const what = document.createElement("span");
+      what.className = "conf";
+      what.textContent = showWeak ? `Hide the ${weak.length} weak signal${weak.length === 1 ? "" : "s"}`
+        : `${weak.length} weak signal${weak.length === 1 ? "" : "s"}, probably noise or glare (show)`;
+      b.append(what);
+      b.addEventListener("click", () => { this.showWeak = !this.showWeak; list.dataset.key = ""; this.renderChanges(); });
+      li.append(b);
+      list.append(li);
+    }
+  }
+
   empty(text) {
     $("flip-empty").textContent = text;
     $("flip-empty").hidden = false;
@@ -441,6 +561,14 @@ export class Flip {
     ctx.clearRect(0, 0, w, h);
     const view = this.views[this.at];
     if (view && view.changes && this.run) this.drawChanges(ctx, w, h, view.changes, view.found);
+    const card = view && view.cards && view.cards[this.selectedCard];
+    if (card && this.run) {   // the change chosen in the list: a larger thin ring
+      const n = this.run.n, zoom = this.book.state.zoom;
+      const sx = (0.5 + ((card.x + 0.5) / n - 0.5) * zoom) * w, sy = (0.5 + ((1 - (card.y + 0.5) / n) - 0.5) * zoom) * h;
+      ctx.strokeStyle = "#DCE3EC";
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(sx, sy, Math.max(16, (w / n) * zoom * 4.5), 0, Math.PI * 2); ctx.stroke();
+    }
     if (this.spot && this.run) {   // the spot chosen for the Spectrum tab: a small square
       const n = this.run.n, zoom = this.book.state.zoom, side = Math.max(10, (w / n) * zoom * 5);
       const sx = (0.5 + ((this.spot.x + 0.5) / n - 0.5) * zoom) * w, sy = (0.5 + ((1 - (this.spot.y + 0.5) / n) - 0.5) * zoom) * h;

@@ -330,3 +330,24 @@ def test_one_collection_down_still_returns_the_other(monkeypatch):
     monkeypatch.setattr(net, "fetch", lambda url, **kw: (_ for _ in ()).throw(net.FetchError("502")))
     with pytest.raises(net.FetchError):
         irsa.search_status(269.4, 4.7)
+
+
+def test_gaia_answer_is_parsed():
+    from spherex import gaia
+    stars = gaia.parse_tsv((FIXTURES / "gaia_sample.tsv").read_text())
+    barnard = stars[0]
+    assert barnard["id"] == "4472832130942575872" and barnard["g"] == pytest.approx(8.194, abs=1e-3)
+    assert barnard["pmdec"] == pytest.approx(10362.394) and barnard["plx"] == pytest.approx(546.9759)
+    assert any(s["variable"] for s in stars) and not barnard["variable"]
+    assert gaia.parse_tsv("") == [] and gaia.parse_tsv("#only comments\n") == []
+
+
+def test_gaia_query_is_validated():
+    from spherex import gaia
+    url = gaia.query_url(gaia.MIRRORS[0], 269.4461, 4.7707, 0.15)
+    assert url.startswith("https://vizier.cfa.harvard.edu/") and "I%2F355%2Fgaiadr3" in url
+    for bad in [(400, 0, 0.1), (10, 10, 0), (10, 10, 5)]:
+        with pytest.raises(ValueError):
+            gaia.query_url(gaia.MIRRORS[0], *bad)
+    with pytest.raises(ValueError):
+        gaia.query_url("https://example.com/", 10, 10, 0.1)

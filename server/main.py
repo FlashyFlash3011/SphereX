@@ -17,7 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from spherex import channels, cutout, irsa, net, positions, stack
+from spherex import channels, cutout, gaia, irsa, net, positions, stack
 from spherex.net import FetchError
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
@@ -195,6 +195,31 @@ def search(ra: float, dec: float, dets: str = Query("1,2,3,4,5,6", max_length=11
                    for v, t in sorted(visits.items())],
         "photos": photos,
     }
+
+
+_gaia: "OrderedDict[tuple, list]" = OrderedDict()
+
+
+@app.get("/api/gaia")
+def gaia_stars(ra: float, dec: float, radius: float = Query(0.15, gt=0, le=gaia.MAX_RADIUS_DEG)):
+    """Gaia DR3 stars around a position (positions for 2016, motions, distances, variable flag)."""
+    try:
+        ra, dec = positions.validate(ra, dec)
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+    key = (round(ra, 4), round(dec, 4), round(radius, 3))
+    with _lock:
+        found = _gaia.get(key)
+    if found is None:
+        try:
+            found = gaia.stars_near(ra, dec, radius)
+        except FetchError:
+            raise HTTPException(502, "The Gaia catalogue didn't answer. The comparison still works, without Gaia.")
+        with _lock:
+            _gaia[key] = found
+            while len(_gaia) > 64:
+                _gaia.popitem(last=False)
+    return {"epoch": gaia.EPOCH, "stars": found}
 
 
 @app.post("/api/stacks")

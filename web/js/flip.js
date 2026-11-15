@@ -363,7 +363,7 @@ export class Flip {
               + (this.smallVisits.length ? `. Left out: visit ${this.smallVisits.map((g) => g.v + 1).join(", ")} (too few photos in this band)` : ""),
             found,
             label: `Visit ${now.v + 1} vs ${ref.v + 1}`, small: now.range,
-            data: S, base: B.mean, changes, inputs,
+            data: S, base: B.mean, ref: inputs.A.mean, changes, inputs,
           });
         }
         this.noCompare = usable.length < 2;
@@ -400,7 +400,7 @@ export class Flip {
           title: dayText(f.utc),
           sub: `Photo at ${f.lam_um.toFixed(3)} µm (visit ${f.pass + 1}) compared with visit ${refVisit + 1} in the same colour: ${describe(found)}`,
           label: dayText(f.utc), small: `${f.lam_um.toFixed(2)} µm`,
-          data: S, base: px, changes, found,
+          data: S, base: px, ref: A.mean, changes, found,
         });
       }
       this.noCompare = visits.length < 2;
@@ -410,7 +410,9 @@ export class Flip {
     if (this.at >= views.length) this.at = 0;
     const diff = views.length > 0 && !!views[0].base;
     // In compare mode the texture holds the change maps first, then the plain image under each one.
-    this.book.setFrames(run.n, diff ? [...views.map((v) => v.data), ...views.map((v) => v.base)] : views.map((v) => v.data));
+    this.book.setFrames(run.n, diff
+      ? [...views.map((v) => v.data), ...views.map((v) => v.base), ...views.map((v) => v.ref || v.base)]
+      : views.map((v) => v.data));
     this.book.set({ diff, thr: this.thr });
     $("flip-legend").hidden = !diff;
     this.updateCuts();
@@ -448,11 +450,21 @@ export class Flip {
     $("flip-empty").hidden = true;
     $("flip-title").textContent = v.title;
     $("flip-sub").textContent = v.sub;
-    const gi = this.ghostIndex();
-    this.ghostCmp = gi >= 0 ? this.ghostComparison(gi) : null;
-    this.book.set({ layer: this.at, base: this.views.length + this.at,
-                    ghost: gi >= 0 ? (this.ghostStyle === "plain" ? 1 : 2) : 0, ghostLayer: Math.max(gi, 0), ghostAlpha: this.ghostAlpha });
-    if (gi >= 0) $("flip-sub").textContent = `${v.sub}. Ghost: ${this.views[gi].label} (faint = before${this.ghostStyle === "plain" ? "" : ", red = what's new now"})`;
+    const style = this.ghostStyle === "plain" ? 1 : 2;
+    if (this.compare !== "off" && v.ref) {
+      // Changes and ghost together: the ghost is the visit this comparison is against.
+      const on = this.ghost !== "off";
+      this.ghostCmp = null;
+      this.book.set({ layer: this.at, base: this.views.length + this.at,
+                      ghost: on ? style : 0, ghostLayer: 2 * this.views.length + this.at, ghostAlpha: this.ghostAlpha });
+      if (on) $("flip-sub").textContent = `${v.sub}. Ghost: the earlier visit (faint${style === 2 ? "; red = what's new now" : ""})`;
+    } else {
+      const gi = this.ghostIndex();
+      this.ghostCmp = gi >= 0 ? this.ghostComparison(gi) : null;
+      this.book.set({ layer: this.at, base: this.views.length + this.at,
+                      ghost: gi >= 0 ? style : 0, ghostLayer: Math.max(gi, 0), ghostAlpha: this.ghostAlpha });
+      if (gi >= 0) $("flip-sub").textContent = `${v.sub}. Ghost: ${this.views[gi].label} (faint = before${style === 2 ? ", red = what's new now" : ""})`;
+    }
     this.renderStrip();
     this.renderChanges();
     this.drawMarker();
@@ -503,7 +515,7 @@ export class Flip {
 
   // ---- ghost: an earlier frame laid under the current one ---------------------------------
   ghostIndex() {
-    if (this.ghost === "off" || this.compare !== "off" || this.views.length < 2) return -1;
+    if (this.ghost === "off" || this.views.length < 2) return -1;
     const cur = this.views[this.at];
     let cands = this.views.map((v, k) => k).filter((k) => k !== this.at);
     if (cur.channel !== undefined) cands = cands.filter((k) => this.views[k].channel === cur.channel);   // same colour only
@@ -791,7 +803,6 @@ export class Flip {
       b.addEventListener("click", () => {
         this.compare = b.dataset.compare;
         for (const o of $("flip-compare").querySelectorAll("button")) o.setAttribute("aria-pressed", String(o === b));
-        if (this.compare !== "off" && this.ghost !== "off") $("flip-ghost").querySelector('[data-ghost="off"]').click();   // one at a time
         $("thr-setting").hidden = this.compare === "off";
         this.at = 0;
         this.rebuild();
@@ -802,7 +813,6 @@ export class Flip {
         this.ghost = b.dataset.ghost;
         for (const o of $("flip-ghost").querySelectorAll("button")) o.setAttribute("aria-pressed", String(o === b));
         $("ghost-options").hidden = this.ghost === "off";
-        if (this.ghost !== "off" && this.compare !== "off") $("flip-compare").querySelector('[data-compare="off"]').click();   // one at a time
         this.render();
       });
     }

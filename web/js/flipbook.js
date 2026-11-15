@@ -41,6 +41,18 @@ float brightness(float v) {   // 0 = darkest, 1 = brightest, after contrast and 
 }
 float shade(float v) { float t = brightness(v); return u_invert ? 1.0 - t : t; }
 
+// Current frame with an earlier frame as a ghost. Plain: the earlier frame shows faintly through.
+// Coloured: light only in the current frame is pure red (#FF0000); the earlier frame is a faint grey ghost.
+vec3 ghostColour(float tc, float tg) {
+  if (u_ghost == 1) {
+    float t = max(tc, tg * u_ghostAlpha);
+    return vec3(u_invert ? 1.0 - t : t);
+  }
+  float tg2 = tg * u_ghostAlpha;
+  float now = max(tc - tg2, 0.0), grey = min(tc, tg2) + max(tg2 - tc, 0.0) * 0.5;
+  return u_invert ? vec3(1.0 - grey, 1.0 - grey - now, 1.0 - grey - now) : vec3(grey + now, grey, grey);
+}
+
 void main() {
   // Row 0 of the image is its south edge, so the top of the screen reads the last row (north up).
   vec2 uv = 0.5 + (v_uv - 0.5) / u_zoom;
@@ -63,8 +75,11 @@ void main() {
   if (u_diff) {
     // Faint sky underneath for orientation; green = got brighter, purple = got fainter.
     float b = fetchAt(ivec2(floor(xy + 0.5)), u_base);
-    float g = b < -1e29 ? 0.5 : mix(0.5, shade(b), 0.45);
-    vec3 col = vec3(g);
+    vec3 col = vec3(b < -1e29 ? 0.5 : mix(0.5, shade(b), 0.45));
+    if (u_ghost > 0 && b > -1e29) {          // changes and ghost together: the compared visit as the ghost
+      float gb = fetchAt(ivec2(floor(xy + 0.5)), u_ghostLayer);
+      col = mix(vec3(0.5), ghostColour(brightness(b), gb < -1e29 ? brightness(b) : brightness(gb)), 0.65);
+    }
     float a = clamp((abs(v) - u_thr) / u_thr, 0.0, 1.0);
     if (abs(v) >= u_thr) col = mix(col, v > 0.0 ? vec3(0.224, 1.0, 0.078) : vec3(0.561, 0.0, 0.561), 0.6 + 0.4 * a);   // brighter #39FF14 / fainter #8F008F
     o = vec4(col, 1.0);
@@ -72,18 +87,8 @@ void main() {
   }
   if (u_ghost > 0) {
     float g = fetchAt(ivec2(floor(xy + 0.5)), u_ghostLayer);
-    float tc = brightness(v), tg = g < -1e29 ? tc : brightness(g);
-    if (u_ghost == 1) {                       // plain: the earlier frame shows faintly through
-      float t = max(tc, tg * u_ghostAlpha);
-      o = vec4(vec3(u_invert ? 1.0 - t : t), 1.0);
-    } else {                                  // coloured: what's new now in pure red, the earlier frame as a faint grey ghost
-      float tg2 = tg * u_ghostAlpha;
-      float same = min(tc, tg2);              // light in both frames: unchanged
-      float now = max(tc - tg2, 0.0);         // light only in the current frame: red (#FF0000)
-      float before = max(tg2 - tc, 0.0) * 0.5; // light only in the earlier frame: faint grey
-      float grey = same + before;
-      o = vec4(u_invert ? vec3(1.0 - grey, 1.0 - grey - now, 1.0 - grey - now) : vec3(grey + now, grey, grey), 1.0);
-    }
+    float tc = brightness(v);
+    o = vec4(ghostColour(tc, g < -1e29 ? tc : brightness(g)), 1.0);
     return;
   }
   o = vec4(vec3(shade(v)), 1.0);

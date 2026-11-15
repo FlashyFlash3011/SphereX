@@ -45,8 +45,10 @@ def _check(url: str) -> None:
 
 
 def fetch(url: str, byte_range: tuple[int, int] | None = None, suffix: int | None = None,
-          max_bytes: int = 8_000_000, _sleep=time.sleep, _open=_OPENER.open) -> bytes:
-    """GET `url` (optionally a byte range, or the last `suffix` bytes). Raises FetchError."""
+          max_bytes: int = 8_000_000, waits: tuple[float, ...] = RETRY_WAITS_S,
+          _sleep=time.sleep, _open=_OPENER.open) -> bytes:
+    """GET `url` (optionally a byte range, or the last `suffix` bytes). Raises FetchError.
+    `waits` are the pauses between attempts (one more attempt than pauses)."""
     _check(url)
     headers = {"User-Agent": USER_AGENT}
     if byte_range is not None:
@@ -59,7 +61,7 @@ def fetch(url: str, byte_range: tuple[int, int] | None = None, suffix: int | Non
             raise FetchError("bad byte range")
         headers["Range"] = f"bytes=-{suffix}"
     last: Exception | None = None
-    for attempt in range(len(RETRY_WAITS_S) + 1):
+    for attempt in range(len(waits) + 1):
         try:
             req = urllib.request.Request(url, headers=headers)
             with _open(req, timeout=TIMEOUT_S) as resp:
@@ -83,8 +85,8 @@ def fetch(url: str, byte_range: tuple[int, int] | None = None, suffix: int | Non
         except (urllib.error.URLError, http.client.HTTPException, TimeoutError, OSError) as e:
             last = e
             log.warning("fetch %s attempt %d: %s %s", urlsplit(url).hostname, attempt + 1, type(e).__name__, str(e)[:200])
-        if attempt < len(RETRY_WAITS_S):
-            _sleep(RETRY_WAITS_S[attempt] + random.random() * 0.5)
+        if attempt < len(waits):
+            _sleep(waits[attempt] + random.random() * 0.5)
     raise FetchError(f"fetch failed: {type(last).__name__}")
 
 

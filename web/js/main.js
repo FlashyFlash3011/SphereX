@@ -325,8 +325,18 @@ async function search() {
     }
     const { q, dets } = filters();
     if (!dets.length) throw new Error("Choose at least one detector under Colours.");
-    note.textContent = "Asking NASA's archive for every photo of this spot… (if the server was asleep, the first search can take about a minute)";
-    const data = await getJson(`${API}/api/search?${q}`);
+    note.textContent = "Asking NASA's archive for every photo of this spot…";
+    let data;
+    try {
+      data = await getJson(`${API}/api/search?${q}`);
+    } catch (first) {
+      // NASA's archive is sometimes overloaded for a few minutes: wait and try once more by ourselves.
+      if (!/archive/i.test(first.message)) throw first;
+      note.textContent = "NASA's archive is busy. Trying again in 20 seconds…";
+      await new Promise((r) => setTimeout(r, 20000));
+      note.textContent = "Asking NASA's archive again…";
+      data = await getJson(`${API}/api/search?${q}`);
+    }
     note.textContent = "";
     openResults(data);
   } catch (err) {

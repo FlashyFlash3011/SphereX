@@ -16,6 +16,9 @@ from .positions import validate
 SIA = "https://irsa.ipac.caltech.edu/SIA"
 COLLECTIONS = ("spherex_dr1", "spherex_qr3")
 MAXREC = 3000
+# The archive's search sometimes answers "502/503" for a while when it's overloaded: keep trying for about a
+# minute (pauses 2, 4, 8, 16, 30 s) before giving up. Seen on 14-15 Nov 2026.
+SEARCH_WAITS_S = (2.0, 4.0, 8.0, 16.0, 30.0)
 _IBE_PREFIX = "https://irsa.ipac.caltech.edu/ibe/data/spherex/"
 
 
@@ -84,7 +87,7 @@ def search_status(ra: float, dec: float) -> tuple[list[Exposure], list[str]]:
 
     def get(c):
         try:
-            return c, net.fetch(urls[c], max_bytes=6_000_000).decode("utf-8", "replace")
+            return c, net.fetch(urls[c], max_bytes=6_000_000, waits=SEARCH_WAITS_S).decode("utf-8", "replace")
         except net.FetchError:
             return c, None
 

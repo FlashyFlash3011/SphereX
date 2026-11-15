@@ -1,5 +1,6 @@
 """Offline tests: no network needed. Run with `pytest`."""
 import math
+import urllib.error
 from pathlib import Path
 
 import numpy as np
@@ -351,3 +352,17 @@ def test_gaia_query_is_validated():
             gaia.query_url(gaia.MIRRORS[0], *bad)
     with pytest.raises(ValueError):
         gaia.query_url("https://example.com/", 10, 10, 0.1)
+
+
+def test_search_is_patient_with_a_busy_archive():
+    from spherex import irsa
+    waits, calls = [], []
+
+    def opener(req, timeout):
+        calls.append(1)
+        if len(calls) < 4:
+            raise urllib.error.HTTPError(req.full_url, 502, "Bad Gateway", {}, None)
+        return FakeResp(b"ok", length=2)
+
+    assert net.fetch("https://irsa.ipac.caltech.edu/SIA", waits=irsa.SEARCH_WAITS_S, _open=opener, _sleep=waits.append) == b"ok"
+    assert len(calls) == 4 and len(waits) == 3 and sum(irsa.SEARCH_WAITS_S) >= 55
